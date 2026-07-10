@@ -36,7 +36,10 @@ export function validateEnvironment(
   });
 
   if (result.error) {
-    throw result.error;
+    const messages = result.error.details
+      .map((detail) => detail.message)
+      .join('; ');
+    throw new Error(`Invalid environment configuration: ${messages}`);
   }
 
   return result.value;

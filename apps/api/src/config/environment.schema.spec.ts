@@ -38,4 +38,22 @@ describe('environmentValidationSchema', () => {
       }),
     ).toThrow(/contains an invalid value/);
   });
+
+  it('does not expose configuration values in validation errors', () => {
+    expect.assertions(3);
+
+    try {
+      validateEnvironment({
+        ...validEnvironment,
+        DATABASE_URL:
+          'postgresql://user:database-password@localhost:5432/ai_knowledge',
+        REDIS_URL: 'redis://:redis-password@localhost:6379/0',
+        JWT_SECRET: 'too-short',
+      });
+    } catch (error: unknown) {
+      expect(error).toBeInstanceOf(Error);
+      expect(JSON.stringify(error)).not.toContain('database-password');
+      expect(JSON.stringify(error)).not.toContain('redis-password');
+    }
+  });
 });
