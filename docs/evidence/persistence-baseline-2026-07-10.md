@@ -6,6 +6,8 @@
 - PostgreSQL 17 with pgvector 0.8.5
 - Initial user identity table and `user`/`admin` role enum
 - Explicit migration commands with automatic synchronization disabled
+- NestJS asynchronous TypeORM connection with bounded startup retries
+- PostgreSQL-aware readiness with a dependency-independent liveness endpoint
 - Testcontainers PostgreSQL integration test
 
 Authentication endpoints, sessions, password hashing, and authorization guards are not part of this baseline.
@@ -36,11 +38,21 @@ migration:run -> applied again
 
 All temporary verification containers were removed after execution.
 
+## Application Connection and Health
+
+- `DatabaseModule` loads the validated `DATABASE_URL` through `TypeOrmModule.forRootAsync`.
+- Nest startup never synchronizes the schema or runs migrations.
+- Startup connection retries are limited to three attempts with a one-second delay.
+- `GET /api/v1/health/live` performs no dependency query.
+- `GET /api/v1/health/ready` executes `SELECT 1` and returns PostgreSQL `up` or a sanitized 503 `down` response.
+- E2E tests replace the database module with an explicit fake; they do not silently substitute SQLite.
+- The Testcontainers test separately proves that the real Nest database module initializes against PostgreSQL.
+
 ## Quality Gates
 
 ```text
-pnpm test             -> 2 suites, 6 tests passed
-pnpm test:e2e         -> 1 suite, 1 test passed
+pnpm test             -> 3 suites, 10 tests passed
+pnpm test:e2e         -> 1 suite, 3 tests passed
 pnpm test:integration -> 1 suite, 1 test passed
 pnpm lint             -> 0 errors, 0 warnings
 pnpm typecheck        -> passed
@@ -57,6 +69,5 @@ pnpm install --frozen-lockfile -> passed
 
 ## Remaining Work
 
-- Connect NestJS to the data source through `TypeOrmModule.forRootAsync`.
-- Add dependency-aware readiness without coupling it to liveness.
+- Add Redis connectivity and include it in readiness without coupling it to liveness.
 - Implement registration, Argon2id password hashing, sessions, JWT purpose checks, RBAC, and abuse-case tests.

@@ -16,7 +16,7 @@ Every resume claim must map to a commit plus a reproducible test, runtime check,
 | Built a multi-stage Node 24 production image | Docker build completed from a 525 KB context | Supported |
 | Runs the API without root privileges on a read-only filesystem | Runtime UID 1000, read-only root, all Linux capabilities dropped | Supported |
 | Orchestrates API, pgvector/PostgreSQL, and Redis with health checks | Full Compose stack reported healthy | Supported |
-| Uses migration-driven PostgreSQL identity persistence with pgvector | Testcontainers and CLI both passed upgrade, constraint, rollback, and re-upgrade checks | Supported |
+| Uses migration-driven PostgreSQL identity persistence with pgvector | Testcontainers and CLI passed upgrade, constraint, rollback, re-upgrade, Nest connection, and readiness checks | Supported |
 | Implements secure authentication, RAG, or AI evaluation | Not implemented | Do not claim |
 
 ## Current Safe Wording

@@ -122,20 +122,27 @@ Delivered:
 - Git baseline and legacy tag;
 - strict NestJS workspace and quality gates;
 - non-root, read-only API image;
-- healthy pgvector/PostgreSQL, Redis, and API Compose stack.
+- healthy pgvector/PostgreSQL, Redis, and API Compose stack;
+- validated application configuration;
+- PostgreSQL connection and dependency-aware readiness.
 
 Remaining:
 
-- validated application configuration;
-- dependency-aware readiness;
-- CI workflow and dependency audit.
+- Redis connectivity and readiness;
+- CI workflow and automated dependency audit.
 
 Risk: infrastructure can look complete while the API has no real dependency path.  
 Verify: stop each dependency and assert liveness/readiness behavior separately.
 
 ### Phase 1: Secure Identity and Persistence
 
-- add migrations and user/session tables;
+Delivered:
+
+- reversible migrations and the initial user identity table.
+
+Remaining:
+
+- add session persistence;
 - public registration always creates the least-privileged role;
 - hash passwords with a current memory-hard algorithm;
 - bind refresh/session state to the user and token purpose;

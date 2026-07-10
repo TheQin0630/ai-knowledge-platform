@@ -7,7 +7,7 @@ The active implementation is a strict TypeScript workspace built with NestJS. Th
 ## Current Status
 
 - NestJS 11 API workspace
-- Canonical liveness endpoint: `GET /api/v1/health/live`
+- Canonical liveness and PostgreSQL readiness endpoints under `/api/v1/health`
 - PostgreSQL 17 with pgvector
 - Migration-driven TypeORM persistence with a normalized user identity schema
 - Redis for caching and background job coordination

@@ -54,7 +54,7 @@ Runtime checks:
 
 ## Known Gaps
 
-- The API liveness endpoint does not yet prove PostgreSQL or Redis readiness.
-- The API has not yet established database or Redis client connections.
+- PostgreSQL is connected through TypeORM and covered by readiness; Redis is not yet connected or included in readiness.
+- Liveness intentionally remains independent of PostgreSQL and Redis.
 - Authentication, document ingestion, retrieval, model calls, and AI evaluation are not implemented.
 - No CI provider run exists yet.

@@ -2,7 +2,10 @@ import {
   PostgreSqlContainer,
   StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
+import { ConfigModule } from '@nestjs/config';
+import { Test } from '@nestjs/testing';
 import { DataSource } from 'typeorm';
+import { DatabaseModule } from '../src/database/database.module';
 import { createPersistenceDataSource } from '../src/database/typeorm.options';
 import { User, UserRole } from '../src/modules/identity/entities/user.entity';
 
@@ -123,5 +126,26 @@ describe('initial persistence migration', () => {
 
     const reappliedMigrations = await dataSource.runMigrations();
     expect(reappliedMigrations).toHaveLength(1);
+
+    const nestModule = await Test.createTestingModule({
+      imports: [
+        ConfigModule.forRoot({
+          isGlobal: true,
+          ignoreEnvFile: true,
+          load: [() => ({ DATABASE_URL: container.getConnectionUri() })],
+        }),
+        DatabaseModule,
+      ],
+    }).compile();
+
+    try {
+      const nestDataSource = nestModule.get(DataSource);
+      expect(nestDataSource.isInitialized).toBe(true);
+      await expect(nestDataSource.query('SELECT 1')).resolves.toEqual([
+        { '?column?': 1 },
+      ]);
+    } finally {
+      await nestModule.close();
+    }
   });
 });
