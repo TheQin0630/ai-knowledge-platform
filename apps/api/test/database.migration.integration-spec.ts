@@ -13,6 +13,7 @@ import { DatabaseModule } from '../src/database/database.module';
 import { createPersistenceDataSource } from '../src/database/typeorm.options';
 import { AuthModule } from '../src/modules/auth/auth.module';
 import { User, UserRole } from '../src/modules/identity/entities/user.entity';
+import { REDIS_CLIENT } from '../src/redis/redis.constants';
 
 jest.setTimeout(120_000);
 
@@ -148,7 +149,10 @@ describe('initial persistence migration', () => {
         DatabaseModule,
         AuthModule,
       ],
-    }).compile();
+    })
+      .overrideProvider(REDIS_CLIENT)
+      .useValue({ status: 'end', disconnect: jest.fn() })
+      .compile();
 
     const app: INestApplication<App> = nestModule.createNestApplication();
     configureApp(app);

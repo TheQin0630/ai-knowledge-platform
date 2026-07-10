@@ -7,6 +7,7 @@ import { AppModule } from './../src/app.module';
 import { configureApp } from './../src/app.setup';
 import { DatabaseModule } from './../src/database/database.module';
 import { AuthModule } from './../src/modules/auth/auth.module';
+import { RedisModule } from './../src/redis/redis.module';
 
 const query = jest.fn();
 
@@ -19,6 +20,9 @@ class TestDatabaseModule {}
 
 @Module({})
 class TestAuthModule {}
+
+@Module({})
+class TestRedisModule {}
 
 describe('Health endpoints (e2e)', () => {
   let app: INestApplication<App>;
@@ -33,6 +37,8 @@ describe('Health endpoints (e2e)', () => {
       .useModule(TestDatabaseModule)
       .overrideModule(AuthModule)
       .useModule(TestAuthModule)
+      .overrideModule(RedisModule)
+      .useModule(TestRedisModule)
       .compile();
 
     app = moduleFixture.createNestApplication();

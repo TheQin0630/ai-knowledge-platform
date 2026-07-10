@@ -4,6 +4,7 @@ import { validateEnvironment } from './config/environment.schema';
 import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { HealthModule } from './modules/health/health.module';
+import { RedisModule } from './redis/redis.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { HealthModule } from './modules/health/health.module';
       validate: validateEnvironment,
     }),
     DatabaseModule,
+    RedisModule,
     AuthModule,
     HealthModule,
   ],
