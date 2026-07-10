@@ -1,13 +1,17 @@
 import Joi, { ObjectSchema } from 'joi';
 
-const documentedJwtPlaceholder = 'replace-with-at-least-32-random-bytes';
+const documentedJwtPlaceholders = [
+  'replace-with-at-least-32-random-bytes',
+  'replace-with-a-different-32-byte-secret',
+] as const;
 
 export interface EnvironmentVariables {
   NODE_ENV: 'development' | 'test' | 'production';
   PORT: number;
   DATABASE_URL: string;
   REDIS_URL: string;
-  JWT_SECRET: string;
+  JWT_ACCESS_SECRET: string;
+  JWT_REFRESH_SECRET: string;
 }
 
 const environmentValidationSchema: ObjectSchema<EnvironmentVariables> =
@@ -22,9 +26,13 @@ const environmentValidationSchema: ObjectSchema<EnvironmentVariables> =
     REDIS_URL: Joi.string()
       .uri({ scheme: ['redis', 'rediss'] })
       .required(),
-    JWT_SECRET: Joi.string()
+    JWT_ACCESS_SECRET: Joi.string()
       .min(32)
-      .invalid(documentedJwtPlaceholder)
+      .invalid(...documentedJwtPlaceholders)
+      .required(),
+    JWT_REFRESH_SECRET: Joi.string()
+      .min(32)
+      .invalid(...documentedJwtPlaceholders)
       .required(),
   }).unknown(true);
 
@@ -40,6 +48,12 @@ export function validateEnvironment(
       .map((detail) => detail.message)
       .join('; ');
     throw new Error(`Invalid environment configuration: ${messages}`);
+  }
+
+  if (result.value.JWT_ACCESS_SECRET === result.value.JWT_REFRESH_SECRET) {
+    throw new Error(
+      'Invalid environment configuration: JWT secrets must differ',
+    );
   }
 
   return result.value;
