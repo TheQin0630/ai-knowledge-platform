@@ -3,12 +3,15 @@ import {
   Controller,
   Get,
   HttpCode,
+  HttpException,
+  HttpStatus,
   Post,
   Req,
   Res,
   UseGuards,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import { LoginAttemptLimiter } from './abuse/login-attempt-limiter';
 import { AuthService, PublicUser, RefreshResult } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -17,7 +20,10 @@ import type { AuthenticatedRequest } from './guard/access-token.guard';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly loginAttemptLimiter: LoginAttemptLimiter,
+  ) {}
 
   @Post('register')
   register(@Body() input: RegisterDto): Promise<PublicUser> {
@@ -28,8 +34,27 @@ export class AuthController {
   @HttpCode(200)
   async login(
     @Body() input: LoginDto,
+    @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ) {
+    const limit = await this.loginAttemptLimiter.consume({
+      sourceAddress:
+        request.ip ?? request.socket.remoteAddress ?? 'unknown-source',
+      email: input.email,
+    });
+    if (!limit.allowed) {
+      response.setHeader('Retry-After', limit.retryAfterSeconds.toString());
+      throw new HttpException(
+        {
+          error: {
+            code: 'AUTH_RATE_LIMITED',
+            message: 'Too many authentication attempts',
+          },
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
     const result = await this.authService.login(input);
     setRefreshCookie(response, result);
     return result.body;

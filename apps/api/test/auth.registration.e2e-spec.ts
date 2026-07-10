@@ -3,6 +3,11 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { configureApp } from '../src/app.setup';
+import { LoginAttemptLimiter } from '../src/modules/auth/abuse/login-attempt-limiter';
+import type {
+  LoginAttempt,
+  LoginLimitDecision,
+} from '../src/modules/auth/abuse/login-attempt-limiter';
 import { AuthController } from '../src/modules/auth/auth.controller';
 import { AuthService } from '../src/modules/auth/auth.service';
 import { AccessTokenGuard } from '../src/modules/auth/guard/access-token.guard';
@@ -18,6 +23,10 @@ describe('Registration contract (e2e)', () => {
   const getCurrentUser = jest.fn();
   const verifyAccess = jest.fn();
   const getSession = jest.fn();
+  const consumeLoginAttempt = jest.fn<
+    Promise<LoginLimitDecision>,
+    [LoginAttempt]
+  >();
   let app: INestApplication<App>;
 
   beforeEach(async () => {
@@ -72,6 +81,7 @@ describe('Registration contract (e2e)', () => {
       userId: '6ac80d20-3e9d-4f1d-a98d-807aca81b28f',
       refreshTokenDigest: 'digest',
     });
+    consumeLoginAttempt.mockReset().mockResolvedValue({ allowed: true });
 
     const moduleFixture = await Test.createTestingModule({
       controllers: [AuthController],
@@ -87,6 +97,10 @@ describe('Registration contract (e2e)', () => {
           },
         },
         AccessTokenGuard,
+        {
+          provide: LoginAttemptLimiter,
+          useValue: { consume: consumeLoginAttempt },
+        },
         { provide: AuthTokenService, useValue: { verifyAccess } },
         { provide: RedisSessionStore, useValue: { get: getSession } },
       ],
@@ -125,7 +139,90 @@ describe('Registration contract (e2e)', () => {
       email: 'owner@example.com',
       password: 'correct horse battery staple',
     });
+    expect(consumeLoginAttempt).toHaveBeenCalledTimes(1);
+    expect(consumeLoginAttempt.mock.calls[0][0].email).toBe(
+      'owner@example.com',
+    );
+    expect(typeof consumeLoginAttempt.mock.calls[0][0].sourceAddress).toBe(
+      'string',
+    );
     expect(JSON.stringify(response.body)).not.toContain('refresh-token');
+  });
+
+  it('returns 429 with Retry-After before credential verification when limited', async () => {
+    consumeLoginAttempt.mockResolvedValueOnce({
+      allowed: false,
+      retryAfterSeconds: 317,
+    });
+
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({
+        email: 'owner@example.com',
+        password: 'correct horse battery staple',
+      })
+      .expect(429)
+      .expect({
+        error: {
+          code: 'AUTH_RATE_LIMITED',
+          message: 'Too many authentication attempts',
+        },
+      });
+
+    expect(response.headers['retry-after']).toBe('317');
+    expect(login).not.toHaveBeenCalled();
+  });
+
+  it('ignores untrusted X-Forwarded-For values by default', async () => {
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .set('X-Forwarded-For', '203.0.113.10')
+      .send({
+        email: 'owner@example.com',
+        password: 'correct horse battery staple',
+      })
+      .expect(200);
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .set('X-Forwarded-For', '198.51.100.20')
+      .send({
+        email: 'owner@example.com',
+        password: 'correct horse battery staple',
+      })
+      .expect(200);
+
+    const firstAddress = consumeLoginAttempt.mock.calls[0][0].sourceAddress;
+    const secondAddress = consumeLoginAttempt.mock.calls[1][0].sourceAddress;
+    expect(firstAddress).toBe(secondAddress);
+    expect(firstAddress).not.toBe('203.0.113.10');
+    expect(secondAddress).not.toBe('198.51.100.20');
+  });
+
+  it('fails closed with a sanitized 503 when login limiting is unavailable', async () => {
+    consumeLoginAttempt.mockRejectedValueOnce(
+      new ServiceUnavailableException({
+        error: {
+          code: 'AUTH_RATE_LIMIT_UNAVAILABLE',
+          message: 'Authentication rate limit service is unavailable',
+        },
+      }),
+    );
+
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({
+        email: 'owner@example.com',
+        password: 'correct horse battery staple',
+      })
+      .expect(503)
+      .expect({
+        error: {
+          code: 'AUTH_RATE_LIMIT_UNAVAILABLE',
+          message: 'Authentication rate limit service is unavailable',
+        },
+      });
+
+    expect(login).not.toHaveBeenCalled();
   });
 
   it('refreshes only from the strict cookie and replaces it', async () => {
