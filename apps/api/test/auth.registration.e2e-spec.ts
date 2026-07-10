@@ -10,6 +10,7 @@ import { UserRole } from '../src/modules/identity/entities/user.entity';
 describe('Registration contract (e2e)', () => {
   const register = jest.fn();
   const login = jest.fn();
+  const refresh = jest.fn();
   let app: INestApplication<App>;
 
   beforeEach(async () => {
@@ -33,10 +34,21 @@ describe('Registration contract (e2e)', () => {
       refreshToken: 'refresh-token',
       refreshExpiresIn: 604_800,
     });
+    refresh.mockReset().mockResolvedValue({
+      body: {
+        accessToken: 'next-access-token',
+        tokenType: 'Bearer',
+        expiresIn: 900,
+      },
+      refreshToken: 'next-refresh-token',
+      refreshExpiresIn: 604_800,
+    });
 
     const moduleFixture = await Test.createTestingModule({
       controllers: [AuthController],
-      providers: [{ provide: AuthService, useValue: { register, login } }],
+      providers: [
+        { provide: AuthService, useValue: { register, login, refresh } },
+      ],
     }).compile();
 
     app = moduleFixture.createNestApplication();
@@ -73,6 +85,27 @@ describe('Registration contract (e2e)', () => {
       password: 'correct horse battery staple',
     });
     expect(JSON.stringify(response.body)).not.toContain('refresh-token');
+  });
+
+  it('refreshes only from the strict cookie and replaces it', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/auth/refresh')
+      .set('Cookie', 'refresh_token=current-refresh-token')
+      .send({ refreshToken: 'body-token-must-be-ignored' })
+      .expect(200)
+      .expect({
+        accessToken: 'next-access-token',
+        tokenType: 'Bearer',
+        expiresIn: 900,
+      });
+
+    expect(refresh).toHaveBeenCalledWith('current-refresh-token');
+    expect(response.headers['set-cookie']).toEqual([
+      expect.stringMatching(
+        /^refresh_token=next-refresh-token; Max-Age=604800; Path=\/api\/v1\/auth; Expires=.*; HttpOnly; SameSite=Strict$/,
+      ),
+    ]);
+    expect(JSON.stringify(response.body)).not.toContain('next-refresh-token');
   });
 
   afterEach(async () => {

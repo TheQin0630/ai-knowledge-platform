@@ -4,9 +4,11 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import { ValidationError } from 'class-validator';
+import cookieParser from 'cookie-parser';
 
 export function configureApp(app: INestApplication): void {
   app.setGlobalPrefix('api/v1');
+  app.use(cookieParser());
   app.useGlobalPipes(
     new ValidationPipe({
       transform: true,

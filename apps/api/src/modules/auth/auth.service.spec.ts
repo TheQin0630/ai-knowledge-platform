@@ -4,7 +4,11 @@ import { User, UserRole } from '../identity/entities/user.entity';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { Argon2PasswordHasher } from './password/argon2-password-hasher';
-import { AuthSession, RedisSessionStore } from './session/redis-session.store';
+import {
+  AuthSession,
+  RedisSessionStore,
+  SessionRotationResult,
+} from './session/redis-session.store';
 import { AuthTokenService } from './token/auth-token.service';
 
 describe('AuthService.register', () => {
@@ -171,6 +175,122 @@ describe('AuthService.login', () => {
       });
       expect(issuePair).not.toHaveBeenCalled();
       expect(createSession).not.toHaveBeenCalled();
+    },
+  );
+});
+
+describe('AuthService.refresh', () => {
+  const users = {} as Repository<User>;
+  const hasher = {} as Argon2PasswordHasher;
+  const verifyRefresh = jest.fn();
+  const issuePair = jest.fn();
+  const tokens = {
+    issuePair,
+    verifyRefresh,
+  } as unknown as AuthTokenService;
+  const rotateSession = jest.fn<
+    Promise<SessionRotationResult>,
+    [string, string, string, string, number]
+  >();
+  const sessions = { rotate: rotateSession } as unknown as RedisSessionStore;
+  const service = new AuthService(users, hasher, tokens, sessions);
+  const identity = {
+    userId: '6ac80d20-3e9d-4f1d-a98d-807aca81b28f',
+    sessionId: '42f1d65e-f1ba-49d7-a1d1-9bb756d8f15f',
+    role: UserRole.USER,
+  };
+
+  beforeEach(() => {
+    jest.resetAllMocks();
+  });
+
+  it('atomically rotates the refresh digest and returns a replacement pair', async () => {
+    verifyRefresh.mockResolvedValue({
+      sub: identity.userId,
+      sid: identity.sessionId,
+      role: identity.role,
+    });
+    issuePair.mockResolvedValue({
+      accessToken: 'next-access-token',
+      refreshToken: 'next-refresh-token',
+      accessExpiresIn: 900,
+      refreshExpiresIn: 604_800,
+    });
+    rotateSession.mockResolvedValue('rotated');
+
+    const result = await service.refresh('current-refresh-token');
+
+    expect(issuePair).toHaveBeenCalledWith(identity);
+    expect(rotateSession).toHaveBeenCalledTimes(1);
+    const [sessionId, userId, currentDigest, nextDigest, ttlSeconds] =
+      rotateSession.mock.calls[0];
+    expect(sessionId).toBe(identity.sessionId);
+    expect(userId).toBe(identity.userId);
+    expect(currentDigest).toMatch(/^[0-9a-f]{64}$/);
+    expect(nextDigest).toMatch(/^[0-9a-f]{64}$/);
+    expect(currentDigest).not.toBe(nextDigest);
+    expect(ttlSeconds).toBe(604_800);
+    expect(result).toEqual({
+      body: {
+        accessToken: 'next-access-token',
+        tokenType: 'Bearer',
+        expiresIn: 900,
+      },
+      refreshToken: 'next-refresh-token',
+      refreshExpiresIn: 604_800,
+    });
+  });
+
+  it.each([undefined, '', 'forged-or-expired-token'])(
+    'normalizes missing and invalid token failures',
+    async (refreshToken) => {
+      verifyRefresh.mockRejectedValue(new Error('sensitive JWT detail'));
+
+      let thrown: unknown;
+      try {
+        await service.refresh(refreshToken);
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).toBeInstanceOf(UnauthorizedException);
+      expect((thrown as UnauthorizedException).getResponse()).toEqual({
+        error: {
+          code: 'INVALID_REFRESH_TOKEN',
+          message: 'Refresh token is invalid or expired',
+        },
+      });
+      expect(issuePair).not.toHaveBeenCalled();
+      expect(rotateSession).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['missing', 'replay'] as const)(
+    'rejects a %s session without returning the newly issued pair',
+    async (rotationResult) => {
+      verifyRefresh.mockResolvedValue({
+        sub: identity.userId,
+        sid: identity.sessionId,
+        role: identity.role,
+      });
+      issuePair.mockResolvedValue({
+        accessToken: 'unused-access-token',
+        refreshToken: 'unused-refresh-token',
+        accessExpiresIn: 900,
+        refreshExpiresIn: 604_800,
+      });
+      rotateSession.mockResolvedValue(rotationResult);
+
+      await expect(
+        service.refresh('current-refresh-token'),
+      ).rejects.toMatchObject({
+        response: {
+          error: {
+            code: 'INVALID_REFRESH_TOKEN',
+            message: 'Refresh token is invalid or expired',
+          },
+        },
+      });
     },
   );
 });

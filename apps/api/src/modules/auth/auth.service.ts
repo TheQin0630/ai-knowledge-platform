@@ -38,6 +38,16 @@ export interface LoginResult {
   refreshExpiresIn: number;
 }
 
+export interface RefreshResult {
+  body: {
+    accessToken: string;
+    tokenType: 'Bearer';
+    expiresIn: number;
+  };
+  refreshToken: string;
+  refreshExpiresIn: number;
+}
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -128,10 +138,59 @@ export class AuthService {
       refreshExpiresIn: pair.refreshExpiresIn,
     };
   }
+
+  async refresh(refreshToken: string | undefined): Promise<RefreshResult> {
+    if (!refreshToken) {
+      throw invalidRefreshToken();
+    }
+
+    let claims;
+    try {
+      claims = await this.tokens.verifyRefresh(refreshToken);
+    } catch {
+      throw invalidRefreshToken();
+    }
+
+    const pair = await this.tokens.issuePair({
+      userId: claims.sub,
+      sessionId: claims.sid,
+      role: claims.role,
+    });
+    const rotation = await this.sessions.rotate(
+      claims.sid,
+      claims.sub,
+      digestToken(refreshToken),
+      digestToken(pair.refreshToken),
+      pair.refreshExpiresIn,
+    );
+
+    if (rotation !== 'rotated') {
+      throw invalidRefreshToken();
+    }
+
+    return {
+      body: {
+        accessToken: pair.accessToken,
+        tokenType: 'Bearer',
+        expiresIn: pair.accessExpiresIn,
+      },
+      refreshToken: pair.refreshToken,
+      refreshExpiresIn: pair.refreshExpiresIn,
+    };
+  }
 }
 
 function digestToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
+}
+
+function invalidRefreshToken(): UnauthorizedException {
+  return new UnauthorizedException({
+    error: {
+      code: 'INVALID_REFRESH_TOKEN',
+      message: 'Refresh token is invalid or expired',
+    },
+  });
 }
 
 function isUniqueEmailViolation(error: unknown): boolean {
