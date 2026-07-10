@@ -2,6 +2,9 @@ packages:
   - "apps/*"
 
 allowBuilds:
+  cpu-features: false
+  protobufjs: false
+  ssh2: false
   unrs-resolver: true
 
 minimumReleaseAge: 1440

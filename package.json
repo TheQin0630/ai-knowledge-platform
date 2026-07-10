@@ -12,9 +12,13 @@
     "build": "pnpm --filter @ai-knowledge/api build",
     "dev": "pnpm --filter @ai-knowledge/api start:dev",
     "lint": "pnpm --filter @ai-knowledge/api lint",
+    "migration:revert": "pnpm --filter @ai-knowledge/api migration:revert",
+    "migration:run": "pnpm --filter @ai-knowledge/api migration:run",
+    "migration:show": "pnpm --filter @ai-knowledge/api migration:show",
     "test": "pnpm --filter @ai-knowledge/api test",
     "test:cov": "pnpm --filter @ai-knowledge/api test:cov",
     "test:e2e": "pnpm --filter @ai-knowledge/api test:e2e",
+    "test:integration": "pnpm --filter @ai-knowledge/api test:integration",
     "typecheck": "pnpm --filter @ai-knowledge/api typecheck"
   }
 }

@@ -16,15 +16,16 @@ Every resume claim must map to a commit plus a reproducible test, runtime check,
 | Built a multi-stage Node 24 production image | Docker build completed from a 525 KB context | Supported |
 | Runs the API without root privileges on a read-only filesystem | Runtime UID 1000, read-only root, all Linux capabilities dropped | Supported |
 | Orchestrates API, pgvector/PostgreSQL, and Redis with health checks | Full Compose stack reported healthy | Supported |
+| Uses migration-driven PostgreSQL identity persistence with pgvector | Testcontainers and CLI both passed upgrade, constraint, rollback, and re-upgrade checks | Supported |
 | Implements secure authentication, RAG, or AI evaluation | Not implemented | Do not claim |
 
 ## Current Safe Wording
 
-> Replatformed a course-level Python CMS prototype into a strict TypeScript and NestJS workspace, establishing unit/E2E tests, lint and type gates, and a multi-stage non-root Docker runtime; orchestrated the API with PostgreSQL/pgvector and Redis using dependency health checks and isolated local ports.
+> Replatformed a course-level Python CMS prototype into a strict TypeScript and NestJS workspace with automated quality gates and a hardened non-root container; established migration-driven PostgreSQL/pgvector persistence and Testcontainers coverage for reversible schema changes, normalized email uniqueness, and least-privilege user-role defaults.
 
 Chinese version:
 
-> 将课程级 Python CMS 原型迁移为 TypeScript 严格模式的 NestJS 工程，建立单元测试、E2E、Lint、类型检查与构建门禁；使用多阶段 Docker 构建非 root、只读文件系统的 API 镜像，并完成 API、PostgreSQL/pgvector 与 Redis 的健康编排。
+> 将课程级 Python CMS 原型迁移为 TypeScript 严格模式的 NestJS 工程，建立自动化质量门禁与非 root 容器运行基线；使用 TypeORM 构建迁移驱动的 PostgreSQL/pgvector 持久化层，并通过 Testcontainers 验证可逆迁移、邮箱规范化唯一约束与最小权限角色默认值。
 
 This is an interim engineering bullet, not yet the final AI project bullet.
 

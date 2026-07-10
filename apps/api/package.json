@@ -14,11 +14,15 @@
     "start:prod": "node dist/main",
     "lint": "eslint \"{src,test}/**/*.ts\" --max-warnings=0",
     "lint:fix": "eslint \"{src,test}/**/*.ts\" --fix",
+    "migration:revert": "typeorm-ts-node-commonjs -d src/database/data-source.ts migration:revert",
+    "migration:run": "typeorm-ts-node-commonjs -d src/database/data-source.ts migration:run",
+    "migration:show": "typeorm-ts-node-commonjs -d src/database/data-source.ts migration:show",
     "test": "jest --runInBand",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json --runInBand",
+    "test:integration": "jest --config ./test/jest-integration.json --runInBand",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -39,6 +43,7 @@
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.0.1",
+    "@testcontainers/postgresql": "12.0.4",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^24.0.0",
