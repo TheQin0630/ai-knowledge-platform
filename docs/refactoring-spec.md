@@ -1,363 +1,226 @@
-# CMS Backend Enterprise Readiness Refactoring Spec
+# AI Knowledge Platform Refactoring Specification
 
-Status: Draft, awaiting owner review  
-Date: 2026-07-10
+Status: Active  
+Date: 2026-07-10  
+Decision: ADR-002
 
-## 1. Objective
+## Objective
 
-Evolve the current FastAPI CMS MVP into a backend project that demonstrates production-oriented engineering practices without rewriting working functionality or adding layers only for appearance.
+Replace the legacy CMS with an enterprise-oriented AI knowledge backend that ingests documents, performs hybrid retrieval, returns cited RAG answers, and proves quality through reproducible evaluation.
 
-The target outcome is:
+Success means the repository demonstrates secure backend engineering and measurable AI application behavior. Framework names alone are not success criteria.
 
-- authentication and authorization behavior is secure and covered by abuse-case tests;
-- database changes are versioned and reproducible;
-- API inputs and collection queries have explicit bounds;
-- runtime dependencies are observable and have meaningful health checks;
-- automated quality gates make the build repeatable;
-- every resume claim is backed by code, tests, audit output, or measured runtime data.
+## Product Scope
 
-Assumptions requiring owner confirmation:
+### MVP
 
-1. The target role is a Python backend internship or graduate position.
-2. MySQL and Redis remain the production-facing data stores.
-3. Existing API paths may be preserved, but insecure request fields may be removed.
-4. `2026.3` is a resume or project date, not a required framework version.
-5. The current directory is an exported copy or may be initialized as a Git repository before implementation.
+1. Secure user authentication and workspace authorization.
+2. Document upload metadata and S3-compatible object storage.
+3. Asynchronous parsing, chunking, embedding, and index versioning.
+4. PostgreSQL full-text plus pgvector hybrid retrieval.
+5. Streaming answers with source citations.
+6. User feedback and failed-query capture.
+7. Versioned golden datasets and retrieval/RAG regression reports.
+8. Structured logs, traces, liveness, readiness, and dependency health.
 
-## 2. Current Evidence Baseline
+### Not Doing
 
-Verified on 2026-07-10:
+- model training or fine-tuning before retrieval quality is measured;
+- Kubernetes, Kafka, or microservices for portfolio keywords;
+- a separate vector database before pgvector limits are demonstrated;
+- an autonomous general-purpose agent;
+- a broad CMS feature set unrelated to knowledge ingestion and retrieval.
 
-- 29 Python files parse successfully.
-- The application imports with the pinned dependencies and assembles all declared routes.
-- No automated tests, Git metadata, CI workflow, Alembic configuration, `.gitignore`, or `.dockerignore` were found.
-- Public registration accepts `role=admin` and persists it unchanged.
-- The default JWT secret can sign a token accepted by the application.
-- `PostCreate` accepts a 1 MB content string because no content limit is defined.
-- `pip-audit -r requirements.txt` reports 22 vulnerability records across 5 packages. Duplicate advisory records must be normalized before reporting a final count.
-- Docker Compose configuration parses, but end-to-end container verification was not run because the Docker daemon was stopped.
+## Technology Baseline
 
-These observations are a baseline, not proof of production readiness.
+- Node.js 24.14.0
+- pnpm 11.7.0 with a committed lockfile and dependency-build allowlist
+- NestJS 11 in strict TypeScript mode
+- PostgreSQL 17 with pgvector 0.8.5
+- Redis 8.4
+- Docker Compose for local integration
+- Jest, Supertest, ESLint, Prettier, and TypeScript compiler gates
 
-## 3. Scope
+Exact application dependency versions are authoritative in `pnpm-lock.yaml`.
 
-### In Scope
+## Repository Structure
 
-- authentication, authorization, session, and secret hardening;
-- dependency upgrades and vulnerability policy;
-- pytest-based unit and integration tests;
-- Alembic migrations and removal of startup schema mutation;
-- bounded pagination, filtering, sorting, and input validation;
-- consistent API errors and transaction handling;
-- health, readiness, structured logging, and security audit events;
-- Docker and CI quality gates;
-- reproducible performance baseline;
-- evidence-based project and resume documentation.
-
-### Out of Scope Until Requested
-
-- replacing FastAPI, SQLAlchemy, MySQL, or Redis;
-- adding Kubernetes, microservices, message queues, Elasticsearch, or distributed tracing solely for resume keywords;
-- building a frontend;
-- social login, payment, file upload, or multi-tenant features;
-- a generic repository layer where SQLAlchemy is already an adequate boundary.
-
-## 4. Commands
-
-Current commands:
-
-```powershell
-docker compose config --quiet
-docker compose up --build
+```text
+apps/api/                  NestJS HTTP API
+  src/modules/             Business-owned modules
+docs/decisions/            Architecture decisions
+docs/evidence/             Reproducible test, security, and benchmark summaries
+Dockerfile                 Multi-stage non-root production image
+docker-compose.yml         pgvector/PostgreSQL, Redis, and API
 ```
 
-Target commands after the relevant phase is implemented:
+Add a worker application only when the first ingestion job is implemented. Do not create empty packages for a future architecture diagram.
+
+## Commands
 
 ```powershell
-python -m pytest -q
-python -m pytest --cov=app --cov-report=term-missing
-python -m ruff check app tests
-python -m mypy app
-python -m alembic upgrade head
-python -m alembic downgrade -1
-python -m pip_audit -r requirements.txt
+pnpm install --frozen-lockfile
+pnpm test
+pnpm test:e2e
+pnpm lint
+pnpm typecheck
+pnpm build
+docker compose --env-file .env.example config --quiet
 docker compose up --build --wait
 ```
 
-Commands must be runnable from the repository root in a documented Python 3.12 environment.
-
-## 5. Target Project Structure
+## API Contract Rules
 
-```text
-app/
-  api/              HTTP transport and dependency wiring
-  core/             configuration, security, logging, and shared policies
-  db/               engine/session lifecycle and migration integration
-  models/           persistence models
-  schemas/          request and response contracts
-  services/         business use cases only when a route contains real orchestration
-alembic/             versioned schema migrations
-tests/
-  unit/              pure policy and validation tests
-  integration/       API + MySQL + Redis behavior
-  contract/          OpenAPI and error-shape checks
-docs/
-  decisions/         architecture decision records
-  evidence/          audit, coverage, and benchmark summaries
-```
+- Prefix public endpoints with `/api/v1`.
+- Use plural resource nouns and explicit sub-resources.
+- Validate concrete DTO classes at the HTTP boundary.
+- Reject undocumented fields rather than silently persisting them.
+- Return one machine-readable error envelope.
+- Paginate every collection from its first release.
+- Keep liveness independent of dependencies and readiness dependent on them.
+- Stream answer events with a documented terminal and error event.
 
-The structure is a destination, not a requirement to create empty packages.
+## Testing Strategy
 
-## 6. Code Style
+### Unit
 
-- Use explicit types at API and service boundaries.
-- Keep route functions focused on HTTP translation and use-case orchestration.
-- Put authorization decisions in named policies or dependencies and test them directly.
-- Use SQLAlchemy parameterized expressions; never construct SQL with user input.
-- Map expected database conflicts to stable API errors instead of returning raw 500 responses.
-- Add comments only for non-obvious intent or operational constraints.
+- configuration and secret validation;
+- role and workspace authorization policies;
+- chunking invariants and token bounds;
+- retrieval fusion and citation mapping;
+- provider response validation and error mapping.
 
-Example target shape:
+### Integration
 
-```python
-@router.post("/register", response_model=CurrentUser, status_code=201)
-async def register_user(
-    payload: RegisterRequest,
-    db: Annotated[AsyncSession, Depends(get_db)],
-) -> CurrentUser:
-    user = await auth_service.register_user(db, payload)
-    return CurrentUser.model_validate(user)
-```
+- migrations on an empty PostgreSQL database;
+- uniqueness and transaction conflict behavior;
+- Redis session, rate-limit, and job state;
+- pgvector and full-text retrieval with metadata filters;
+- object storage upload and cleanup.
 
-The service extraction is justified only when it owns transaction, conflict, or policy logic.
+### End to End
 
-## 7. Testing Strategy
+- register, login, access, logout, and privilege-escalation abuse cases;
+- upload through indexed document state;
+- query through streamed cited answer;
+- dependency failure reflected in readiness without breaking liveness.
 
-### Unit Tests
+### AI Evaluation
 
-- configuration rejects unsafe production defaults;
-- public registration cannot assign privileged roles;
-- JWT claims and expiry rules are enforced;
-- pagination and input-boundary validation;
-- rate-limit key and window policy.
+- version a small golden question/document dataset;
+- measure Recall@K and MRR before answer generation;
+- measure citation coverage and unsupported-claim rate;
+- store model, embedding, prompt, index, dataset, and environment versions;
+- never gate deterministic CI on an uncontrolled live-model response.
 
-### Integration Tests
+## Phased Delivery
 
-- registration, login, authenticated request, logout, and expired session;
-- ordinary users receive 403 for administrator operations;
-- forged, expired, malformed, and cross-user session tokens receive 401;
-- duplicate username/category conflicts return stable 409 responses;
-- Alembic upgrades an empty database to head;
-- MySQL and Redis failures change readiness state;
-- list endpoints enforce default and maximum page sizes;
-- rate limits expire and cannot be bypassed by varying resource identifiers.
+### Phase 0: Reproducible Runtime
 
-### Contract Tests
+Delivered:
 
-- OpenAPI exposes the intended authentication scheme;
-- error responses share one documented shape;
-- create endpoints return 201 and missing resources return 404;
-- deliberate API compatibility changes are recorded.
+- Git baseline and legacy tag;
+- strict NestJS workspace and quality gates;
+- non-root, read-only API image;
+- healthy pgvector/PostgreSQL, Redis, and API Compose stack.
 
-### Performance Tests
+Remaining:
 
-Define one reproducible workload after functional correctness is stable:
+- validated application configuration;
+- dependency-aware readiness;
+- CI workflow and dependency audit.
 
-- fixed dataset size and seed procedure;
-- fixed concurrency, duration, machine/container limits, and endpoint mix;
-- report throughput, error rate, and p50/p95/p99 latency;
-- compare before and after only under identical conditions.
+Risk: infrastructure can look complete while the API has no real dependency path.  
+Verify: stop each dependency and assert liveness/readiness behavior separately.
 
-No performance number may appear in the resume until the workload and raw result are stored under `docs/evidence/`.
+### Phase 1: Secure Identity and Persistence
 
-### Coverage Gates
+- add migrations and user/session tables;
+- public registration always creates the least-privileged role;
+- hash passwords with a current memory-hard algorithm;
+- bind refresh/session state to the user and token purpose;
+- add login abuse controls and security events.
 
-- authentication and authorization branches: at least 90%;
-- overall application line coverage: at least 80%;
-- coverage never substitutes for the named abuse-case and integration tests above.
+Risk: auth rewrites can preserve the same privilege escalation under a new framework.  
+Verify: tests for self-assigned roles, forged tokens, session mismatch, expiry, logout, and duplicate identity.
 
-## 8. Phased Plan, Risks, and Verification
+### Phase 2: Knowledge Ingestion
 
-### Phase 0: Recovery and Reproducibility Baseline
+- workspace, knowledge base, document, and version models;
+- bounded upload contracts and object storage;
+- idempotent parse, chunk, embed, and index jobs;
+- retry and dead-letter behavior with traceable job state.
 
-Work:
+Risk: retries can duplicate chunks or publish partial indexes.  
+Verify: idempotency, state transitions, checksum reuse, retry limits, and atomic active-version switch.
 
-- confirm repository ownership and initialize or locate Git history;
-- add ignore files and document Python 3.12 setup;
-- capture current dependency audit and route inventory.
+### Phase 3: Hybrid Retrieval and Cited RAG
 
-Risks:
+- PostgreSQL full-text and pgvector candidate retrieval;
+- deterministic fusion and metadata authorization filters;
+- model-provider interface and streamed answer events;
+- citations resolved only from retrieved chunks.
 
-- editing an exported copy could separate changes from the real repository;
-- ignore rules added after secrets are committed do not remove them from history.
+Risk: a plausible answer can hide poor retrieval or cross-workspace leakage.  
+Verify: Recall@K/MRR, tenant isolation, citation existence, empty-context behavior, and prompt-injection cases.
 
-Verification:
+### Phase 4: Evaluation and Operability
 
-- clean Git working tree after a baseline commit;
-- a fresh clone can install dependencies and import the application;
-- no `.env`, key, token, or local database artifact is tracked.
+- golden dataset runner and stored reports;
+- structured logs, OpenTelemetry traces, and model cost/latency attributes;
+- readiness, queue depth, ingestion failure, and model error metrics;
+- clean-checkout CI and container security checks.
 
-### Phase 1: Authentication and Dependency Hardening
+Risk: LLM judge scores are nondeterministic and can reward style over truth.  
+Verify: deterministic retrieval gates remain primary; judge model/version and variance are recorded.
 
-Work:
+### Phase 5: Resume Evidence
 
-- remove privileged role selection from public registration;
-- require a strong non-default secret outside development;
-- replace automatic default-admin creation with an explicit bootstrap command;
-- bind Redis session values to the authenticated user and validate token purpose;
-- upgrade or replace vulnerable dependencies as a compatible set;
-- add abuse-case tests before changing behavior.
+- map each bullet to a commit, test report, evaluation report, or benchmark;
+- tailor terminology to the supplied AI application job description;
+- include only measured scale, latency, quality, and coverage values.
 
-Risks:
+Risk: adding invented percentages destroys interview credibility.  
+Verify: every number can be reproduced from a documented command.
 
-- existing demonstration instructions and seeded credentials will stop working;
-- dependency upgrades may change request parsing or JWT behavior;
-- changing authentication without regression tests can lock out valid users.
-
-Verification:
-
-- all named authentication tests pass;
-- an unauthenticated client cannot create or impersonate an administrator;
-- production-mode startup rejects missing or placeholder secrets;
-- dependency audit has no unaccepted reachable high/critical finding;
-- every accepted advisory has reachability reasoning, owner, and review date.
-
-### Phase 2: Database Lifecycle and Transaction Correctness
-
-Work:
-
-- configure Alembic and create a reviewed initial migration;
-- stop mutating schema during application startup;
-- define transaction ownership and rollback behavior;
-- map uniqueness and foreign-key conflicts to stable API errors;
-- add startup retry/health coordination for Compose.
-
-Risks:
-
-- an incorrect baseline migration can diverge from existing databases;
-- MySQL DDL behavior makes downgrade assumptions unsafe;
-- check-then-insert races remain unless database errors are handled.
-
-Verification:
-
-- empty database: upgrade to head succeeds;
-- migration rehearsal: upgrade, downgrade one revision, and re-upgrade succeeds where supported;
-- schema comparison shows no unintended drift;
-- concurrent duplicate creation produces one success and one documented conflict.
-
-### Phase 3: Bounded API and Maintainable Use Cases
-
-Work:
-
-- add page-size limits, filtering, sorting, and stable ordering;
-- cap title, content, comment, username, and password inputs intentionally;
-- define consistent response and error contracts;
-- extract services only for multi-step business transactions or reusable policies.
-
-Risks:
-
-- pagination changes response contracts;
-- offset pagination can become slow on deep pages;
-- premature abstraction can make a small codebase harder to navigate.
-
-Verification:
-
-- boundary and contract tests cover minimum, default, maximum, and invalid values;
-- query plans are inspected for indexed filters and ordering;
-- no list endpoint can return an unbounded collection.
-
-### Phase 4: Operability and Delivery
-
-Work:
-
-- separate liveness and readiness;
-- add structured request, error, login-failure, and authorization-denial events;
-- configure Docker health checks and a non-root API user;
-- add lint, type, test, migration, and dependency-audit CI gates;
-- run the documented performance workload.
-
-Risks:
-
-- logs can leak tokens or passwords;
-- readiness checks can overload dependencies if uncached or too frequent;
-- CI that depends on timing-sensitive services can become flaky.
-
-Verification:
-
-- secrets and credentials are redacted from logs;
-- dependency failure is reflected in readiness but not liveness;
-- CI passes from a clean checkout;
-- performance results include workload definition and raw summary.
-
-### Phase 5: Resume and Interview Evidence
-
-Work:
-
-- replace unsupported claims in the current report and interview script;
-- create an evidence matrix linking each bullet to tests, audit, migration, or benchmark output;
-- tailor keywords and bullet ordering to the target job description.
-
-Risks:
-
-- invented percentages damage credibility under interview questioning;
-- listing tools without explaining decisions makes the project look tutorial-level;
-- claiming enterprise readiness before deployment evidence overstates the result.
-
-Verification:
-
-- every quantitative claim has a stored result and reproducible command;
-- every security claim has at least one abuse-case test;
-- every interview talking point can be demonstrated in the repository.
-
-## 9. Boundaries
+## Boundaries
 
 Always:
 
-- write or identify a failing behavioral test before changing behavior;
-- keep each change independently runnable and reviewable;
-- run focused tests, then the full suite and dependency audit;
-- update this spec when an approved decision changes scope.
+- test behavior before implementation;
+- keep changes independently buildable and committed;
+- validate untrusted HTTP, file, model, and retrieval data at boundaries;
+- redact credentials and document content from logs by default.
 
 Ask first:
 
-- authentication or authorization contract changes;
-- database schema changes or destructive migrations;
-- adding or replacing a runtime dependency;
-- breaking response shapes or endpoint paths;
-- changing deployment topology or exposing new ports.
+- breaking public API contracts;
+- destructive migrations or data resets;
+- adding a second language/runtime or external managed service;
+- changing the target role away from AI application development.
 
 Never:
 
-- commit secrets or real credentials;
-- delete failing tests to make a gate pass;
-- claim performance, availability, or coverage results that were not measured;
-- introduce infrastructure only to add resume keywords;
-- remove existing behavior whose business intent is unknown.
+- commit secrets, uploaded documents, model responses containing private data, or local databases;
+- trust model output as SQL, HTML, a shell command, or an authorization decision;
+- claim enterprise readiness from architecture diagrams without failure tests;
+- add infrastructure only to create resume keywords.
 
-## 10. Success Criteria
+## Completion Criteria
 
-The refactoring is complete only when all of the following are proven:
+The project is complete when:
 
-1. Security abuse cases pass and no public path can grant administrator access.
-2. Production configuration contains no operational default secret or default account.
-3. Database state is reproducible exclusively through reviewed migrations.
-4. API inputs and collection results are explicitly bounded.
-5. Expected conflicts return documented errors instead of unhandled 500 responses.
-6. Liveness, readiness, logs, and audit events expose runtime behavior without leaking credentials.
-7. CI reproduces lint, type, test, migration, and dependency-security checks from a clean checkout.
-8. A documented performance workload produces repeatable results.
-9. Project documentation matches the implemented behavior.
-10. Resume bullets are tailored to the target role and linked to verifiable evidence.
+1. all phases have passing named verification commands;
+2. clean database and object-store initialization is migration-driven;
+3. authorization prevents cross-workspace reads and writes;
+4. ingestion is idempotent and observable;
+5. hybrid retrieval and citations meet stored evaluation thresholds;
+6. liveness, readiness, logs, traces, and alerts expose dependency failures safely;
+7. CI reproduces tests, build, migrations, audits, and container checks;
+8. resume wording is supported by repository evidence and a target JD.
 
-## 11. Open Questions
+## Open Inputs
 
-1. What does `2026.3` mean: project end date, resume version, or application deadline?
-2. What exact role and job description should the resume target?
-3. Where is the current resume source file?
-4. Is this directory the authoritative repository, an export, or a copy without `.git`?
-5. Should public article and comment reads remain unauthenticated while category reads require login?
-6. Is self-registration required in the intended business model?
-7. Must existing databases/data be migrated, or may the development database be recreated?
-8. What deployment target and expected traffic should define the performance workload?
-
-Implementation must not begin on an unresolved item that changes authentication, data compatibility, or public API behavior.
+- Copy `2026.3.docx` into this repository before resume editing.
+- Add a representative AI application development job description.
+- Choose the first supported model provider before Phase 3.
