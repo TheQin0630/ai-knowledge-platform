@@ -5,6 +5,9 @@ import { App } from 'supertest/types';
 import { configureApp } from '../src/app.setup';
 import { AuthController } from '../src/modules/auth/auth.controller';
 import { AuthService } from '../src/modules/auth/auth.service';
+import { AccessTokenGuard } from '../src/modules/auth/guard/access-token.guard';
+import { RedisSessionStore } from '../src/modules/auth/session/redis-session.store';
+import { AuthTokenService } from '../src/modules/auth/token/auth-token.service';
 import { UserRole } from '../src/modules/identity/entities/user.entity';
 
 describe('Registration contract (e2e)', () => {
@@ -12,6 +15,9 @@ describe('Registration contract (e2e)', () => {
   const login = jest.fn();
   const refresh = jest.fn();
   const logout = jest.fn();
+  const getCurrentUser = jest.fn();
+  const verifyAccess = jest.fn();
+  const getSession = jest.fn();
   let app: INestApplication<App>;
 
   beforeEach(async () => {
@@ -45,14 +51,44 @@ describe('Registration contract (e2e)', () => {
       refreshExpiresIn: 604_800,
     });
     logout.mockReset().mockResolvedValue(undefined);
+    getCurrentUser.mockReset().mockResolvedValue({
+      id: '6ac80d20-3e9d-4f1d-a98d-807aca81b28f',
+      email: 'owner@example.com',
+      role: UserRole.USER,
+      createdAt: '2026-07-10T00:00:00.000Z',
+    });
+    verifyAccess.mockReset().mockImplementation((token: string) => {
+      if (token !== 'access-token') {
+        return Promise.reject(new Error('invalid token'));
+      }
+      return Promise.resolve({
+        sub: '6ac80d20-3e9d-4f1d-a98d-807aca81b28f',
+        sid: '42f1d65e-f1ba-49d7-a1d1-9bb756d8f15f',
+        role: UserRole.USER,
+      });
+    });
+    getSession.mockReset().mockResolvedValue({
+      sessionId: '42f1d65e-f1ba-49d7-a1d1-9bb756d8f15f',
+      userId: '6ac80d20-3e9d-4f1d-a98d-807aca81b28f',
+      refreshTokenDigest: 'digest',
+    });
 
     const moduleFixture = await Test.createTestingModule({
       controllers: [AuthController],
       providers: [
         {
           provide: AuthService,
-          useValue: { register, login, refresh, logout },
+          useValue: {
+            register,
+            login,
+            refresh,
+            logout,
+            getCurrentUser,
+          },
         },
+        AccessTokenGuard,
+        { provide: AuthTokenService, useValue: { verifyAccess } },
+        { provide: RedisSessionStore, useValue: { get: getSession } },
       ],
     }).compile();
 
@@ -141,6 +177,41 @@ describe('Registration contract (e2e)', () => {
       ),
     ]);
   });
+
+  it('returns the current identity for an access token with an active session', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/auth/me')
+      .set('Authorization', 'Bearer access-token')
+      .expect(200)
+      .expect({
+        id: '6ac80d20-3e9d-4f1d-a98d-807aca81b28f',
+        email: 'owner@example.com',
+        role: UserRole.USER,
+        createdAt: '2026-07-10T00:00:00.000Z',
+      });
+
+    expect(getCurrentUser).toHaveBeenCalledWith(
+      '6ac80d20-3e9d-4f1d-a98d-807aca81b28f',
+    );
+  });
+
+  it.each([undefined, 'Bearer refresh-token'])(
+    'rejects /me without a valid access Bearer token',
+    async (authorization) => {
+      const call = request(app.getHttpServer()).get('/api/v1/auth/me');
+      if (authorization) {
+        call.set('Authorization', authorization);
+      }
+
+      await call.expect(401).expect({
+        error: {
+          code: 'INVALID_ACCESS_TOKEN',
+          message: 'Access token is invalid or expired',
+        },
+      });
+      expect(getCurrentUser).not.toHaveBeenCalled();
+    },
+  );
 
   afterEach(async () => {
     await app.close();

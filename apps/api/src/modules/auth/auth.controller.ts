@@ -1,8 +1,19 @@
-import { Body, Controller, HttpCode, Post, Req, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Post,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { AuthService, PublicUser, RefreshResult } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { AccessTokenGuard } from './guard/access-token.guard';
+import type { AuthenticatedRequest } from './guard/access-token.guard';
 
 @Controller('auth')
 export class AuthController {
@@ -48,6 +59,12 @@ export class AuthController {
     } finally {
       clearRefreshCookie(response);
     }
+  }
+
+  @Get('me')
+  @UseGuards(AccessTokenGuard)
+  me(@Req() request: AuthenticatedRequest): Promise<PublicUser> {
+    return this.authService.getCurrentUser(request.auth.userId);
   }
 }
 

@@ -68,12 +68,7 @@ export class AuthService {
 
     try {
       const saved = await this.users.save(user);
-      return {
-        id: saved.id,
-        email: saved.email,
-        role: saved.role,
-        createdAt: saved.createdAt.toISOString(),
-      };
+      return toPublicUser(saved);
     } catch (error) {
       if (isUniqueEmailViolation(error)) {
         throw new ConflictException({
@@ -193,6 +188,22 @@ export class AuthService {
 
     await this.sessions.revoke(claims.sid);
   }
+
+  async getCurrentUser(userId: string): Promise<PublicUser> {
+    const user = await this.users.findOne({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        createdAt: true,
+      },
+    });
+    if (!user) {
+      throw invalidAccessToken();
+    }
+    return toPublicUser(user);
+  }
 }
 
 function digestToken(token: string): string {
@@ -206,6 +217,24 @@ function invalidRefreshToken(): UnauthorizedException {
       message: 'Refresh token is invalid or expired',
     },
   });
+}
+
+function invalidAccessToken(): UnauthorizedException {
+  return new UnauthorizedException({
+    error: {
+      code: 'INVALID_ACCESS_TOKEN',
+      message: 'Access token is invalid or expired',
+    },
+  });
+}
+
+function toPublicUser(user: User): PublicUser {
+  return {
+    id: user.id,
+    email: user.email,
+    role: user.role,
+    createdAt: user.createdAt.toISOString(),
+  };
 }
 
 function isUniqueEmailViolation(error: unknown): boolean {

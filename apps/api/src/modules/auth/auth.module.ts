@@ -5,6 +5,7 @@ import { RedisModule } from '../../redis/redis.module';
 import { User } from '../identity/entities/user.entity';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { AccessTokenGuard } from './guard/access-token.guard';
 import { Argon2PasswordHasher } from './password/argon2-password-hasher';
 import { RedisSessionStore } from './session/redis-session.store';
 import { AuthTokenService } from './token/auth-token.service';
@@ -21,6 +22,7 @@ import { AuthTokenService } from './token/auth-token.service';
     Argon2PasswordHasher,
     AuthTokenService,
     RedisSessionStore,
+    AccessTokenGuard,
   ],
 })
 export class AuthModule {}

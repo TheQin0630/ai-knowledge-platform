@@ -332,3 +332,49 @@ describe('AuthService.logout', () => {
     },
   );
 });
+
+describe('AuthService.getCurrentUser', () => {
+  const findOne = jest.fn();
+  const users = { findOne } as unknown as Repository<User>;
+  const hasher = {} as Argon2PasswordHasher;
+  const tokens = {} as AuthTokenService;
+  const sessions = {} as RedisSessionStore;
+  const service = new AuthService(users, hasher, tokens, sessions);
+
+  beforeEach(() => {
+    jest.resetAllMocks();
+  });
+
+  it('returns the current public identity without password state', async () => {
+    findOne.mockResolvedValue({
+      id: '6ac80d20-3e9d-4f1d-a98d-807aca81b28f',
+      email: 'owner@example.com',
+      role: UserRole.USER,
+      createdAt: new Date('2026-07-10T00:00:00.000Z'),
+    });
+
+    await expect(
+      service.getCurrentUser('6ac80d20-3e9d-4f1d-a98d-807aca81b28f'),
+    ).resolves.toEqual({
+      id: '6ac80d20-3e9d-4f1d-a98d-807aca81b28f',
+      email: 'owner@example.com',
+      role: UserRole.USER,
+      createdAt: '2026-07-10T00:00:00.000Z',
+    });
+  });
+
+  it('rejects a token whose identity no longer exists', async () => {
+    findOne.mockResolvedValue(null);
+
+    await expect(
+      service.getCurrentUser('6ac80d20-3e9d-4f1d-a98d-807aca81b28f'),
+    ).rejects.toMatchObject({ response: invalidAccessResponse });
+  });
+});
+
+const invalidAccessResponse = {
+  error: {
+    code: 'INVALID_ACCESS_TOKEN',
+    message: 'Access token is invalid or expired',
+  },
+};
