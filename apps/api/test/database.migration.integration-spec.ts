@@ -137,7 +137,13 @@ describe('initial persistence migration', () => {
         ConfigModule.forRoot({
           isGlobal: true,
           ignoreEnvFile: true,
-          load: [() => ({ DATABASE_URL: container.getConnectionUri() })],
+          load: [
+            () => ({
+              DATABASE_URL: container.getConnectionUri(),
+              JWT_ACCESS_SECRET: '0123456789abcdef0123456789abcdef',
+              JWT_REFRESH_SECRET: 'fedcba9876543210fedcba9876543210',
+            }),
+          ],
         }),
         DatabaseModule,
         AuthModule,
