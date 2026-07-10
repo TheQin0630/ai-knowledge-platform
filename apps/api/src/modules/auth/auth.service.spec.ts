@@ -294,3 +294,41 @@ describe('AuthService.refresh', () => {
     },
   );
 });
+
+describe('AuthService.logout', () => {
+  const users = {} as Repository<User>;
+  const hasher = {} as Argon2PasswordHasher;
+  const verifyRefresh = jest.fn();
+  const tokens = { verifyRefresh } as unknown as AuthTokenService;
+  const revokeSession = jest.fn<Promise<void>, [string]>();
+  const sessions = { revoke: revokeSession } as unknown as RedisSessionStore;
+  const service = new AuthService(users, hasher, tokens, sessions);
+
+  beforeEach(() => {
+    jest.resetAllMocks();
+  });
+
+  it('revokes the session identified by a valid refresh token', async () => {
+    verifyRefresh.mockResolvedValue({
+      sid: '42f1d65e-f1ba-49d7-a1d1-9bb756d8f15f',
+    });
+    revokeSession.mockResolvedValue();
+
+    await service.logout('valid-refresh-token');
+
+    expect(revokeSession).toHaveBeenCalledWith(
+      '42f1d65e-f1ba-49d7-a1d1-9bb756d8f15f',
+    );
+  });
+
+  it.each([undefined, '', 'forged-or-expired-token'])(
+    'is idempotent for missing and invalid refresh tokens',
+    async (refreshToken) => {
+      verifyRefresh.mockRejectedValue(new Error('sensitive JWT detail'));
+
+      await expect(service.logout(refreshToken)).resolves.toBeUndefined();
+
+      expect(revokeSession).not.toHaveBeenCalled();
+    },
+  );
+});

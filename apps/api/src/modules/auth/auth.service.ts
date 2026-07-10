@@ -178,6 +178,21 @@ export class AuthService {
       refreshExpiresIn: pair.refreshExpiresIn,
     };
   }
+
+  async logout(refreshToken: string | undefined): Promise<void> {
+    if (!refreshToken) {
+      return;
+    }
+
+    let claims;
+    try {
+      claims = await this.tokens.verifyRefresh(refreshToken);
+    } catch {
+      return;
+    }
+
+    await this.sessions.revoke(claims.sid);
+  }
 }
 
 function digestToken(token: string): string {

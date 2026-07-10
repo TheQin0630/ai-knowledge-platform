@@ -11,6 +11,7 @@ describe('Registration contract (e2e)', () => {
   const register = jest.fn();
   const login = jest.fn();
   const refresh = jest.fn();
+  const logout = jest.fn();
   let app: INestApplication<App>;
 
   beforeEach(async () => {
@@ -43,11 +44,15 @@ describe('Registration contract (e2e)', () => {
       refreshToken: 'next-refresh-token',
       refreshExpiresIn: 604_800,
     });
+    logout.mockReset().mockResolvedValue(undefined);
 
     const moduleFixture = await Test.createTestingModule({
       controllers: [AuthController],
       providers: [
-        { provide: AuthService, useValue: { register, login, refresh } },
+        {
+          provide: AuthService,
+          useValue: { register, login, refresh, logout },
+        },
       ],
     }).compile();
 
@@ -106,6 +111,35 @@ describe('Registration contract (e2e)', () => {
       ),
     ]);
     expect(JSON.stringify(response.body)).not.toContain('next-refresh-token');
+  });
+
+  it('logs out idempotently and expires the scoped refresh cookie', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/auth/logout')
+      .set('Cookie', 'refresh_token=current-refresh-token')
+      .expect(204);
+
+    expect(logout).toHaveBeenCalledWith('current-refresh-token');
+    expect(response.headers['set-cookie']).toEqual([
+      expect.stringMatching(
+        /^refresh_token=; Path=\/api\/v1\/auth; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Strict$/,
+      ),
+    ]);
+  });
+
+  it('expires the refresh cookie even when server-side revocation fails', async () => {
+    logout.mockRejectedValueOnce(new Error('Redis unavailable'));
+
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/auth/logout')
+      .set('Cookie', 'refresh_token=current-refresh-token')
+      .expect(500);
+
+    expect(response.headers['set-cookie']).toEqual([
+      expect.stringMatching(
+        /^refresh_token=; Path=\/api\/v1\/auth; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Strict$/,
+      ),
+    ]);
   });
 
   afterEach(async () => {

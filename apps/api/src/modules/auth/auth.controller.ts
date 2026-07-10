@@ -36,6 +36,19 @@ export class AuthController {
     setRefreshCookie(response, result);
     return result.body;
   }
+
+  @Post('logout')
+  @HttpCode(204)
+  async logout(
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<void> {
+    try {
+      await this.authService.logout(readRefreshCookie(request.cookies));
+    } finally {
+      clearRefreshCookie(response);
+    }
+  }
 }
 
 function readRefreshCookie(cookies: unknown): string | undefined {
@@ -57,5 +70,14 @@ function setRefreshCookie(
     secure: process.env.NODE_ENV === 'production',
     path: '/api/v1/auth',
     maxAge: result.refreshExpiresIn * 1_000,
+  });
+}
+
+function clearRefreshCookie(response: Response): void {
+  response.clearCookie('refresh_token', {
+    httpOnly: true,
+    sameSite: 'strict',
+    secure: process.env.NODE_ENV === 'production',
+    path: '/api/v1/auth',
   });
 }
