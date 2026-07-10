@@ -1,0 +1,11 @@
+packages:
+  - "apps/*"
+
+allowBuilds:
+  unrs-resolver: true
+
+minimumReleaseAge: 1440
+
+minimumReleaseAgeExclude:
+  - "@nestjs/*"
+  - "nestjs"

@@ -1,0 +1,20 @@
+{
+  "name": "ai-knowledge-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Enterprise-ready AI knowledge platform with hybrid retrieval, cited RAG, and reproducible evaluation.",
+  "license": "UNLICENSED",
+  "packageManager": "pnpm@11.7.0",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "build": "pnpm --filter @ai-knowledge/api build",
+    "dev": "pnpm --filter @ai-knowledge/api start:dev",
+    "lint": "pnpm --filter @ai-knowledge/api lint",
+    "test": "pnpm --filter @ai-knowledge/api test",
+    "test:cov": "pnpm --filter @ai-knowledge/api test:cov",
+    "test:e2e": "pnpm --filter @ai-knowledge/api test:e2e",
+    "typecheck": "pnpm --filter @ai-knowledge/api typecheck"
+  }
+}
