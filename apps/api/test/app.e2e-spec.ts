@@ -1,15 +1,18 @@
 import { Global, INestApplication, Module } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getDataSourceToken } from '@nestjs/typeorm';
+import Redis from 'ioredis';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
 import { configureApp } from './../src/app.setup';
 import { DatabaseModule } from './../src/database/database.module';
 import { AuthModule } from './../src/modules/auth/auth.module';
+import { REDIS_CLIENT } from './../src/redis/redis.constants';
 import { RedisModule } from './../src/redis/redis.module';
 
 const query = jest.fn();
+const ping = jest.fn();
 
 @Global()
 @Module({
@@ -21,7 +24,11 @@ class TestDatabaseModule {}
 @Module({})
 class TestAuthModule {}
 
-@Module({})
+@Global()
+@Module({
+  providers: [{ provide: REDIS_CLIENT, useValue: { ping } as Partial<Redis> }],
+  exports: [REDIS_CLIENT],
+})
 class TestRedisModule {}
 
 describe('Health endpoints (e2e)', () => {
@@ -29,6 +36,7 @@ describe('Health endpoints (e2e)', () => {
 
   beforeEach(async () => {
     query.mockReset().mockResolvedValue([{ result: 1 }]);
+    ping.mockReset().mockResolvedValue('PONG');
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
@@ -51,14 +59,20 @@ describe('Health endpoints (e2e)', () => {
       .get('/api/v1/health/live')
       .expect(200)
       .expect({ status: 'ok' })
-      .then(() => expect(query).not.toHaveBeenCalled());
+      .then(() => {
+        expect(query).not.toHaveBeenCalled();
+        expect(ping).not.toHaveBeenCalled();
+      });
   });
 
   it('/api/v1/health/ready (GET)', () => {
     return request(app.getHttpServer())
       .get('/api/v1/health/ready')
       .expect(200)
-      .expect({ status: 'ok', dependencies: { postgres: 'up' } });
+      .expect({
+        status: 'ok',
+        dependencies: { postgres: 'up', redis: 'up' },
+      });
   });
 
   it('/api/v1/health/ready returns 503 without leaking database errors', async () => {
@@ -69,7 +83,26 @@ describe('Health endpoints (e2e)', () => {
     const response = await request(app.getHttpServer())
       .get('/api/v1/health/ready')
       .expect(503)
-      .expect({ status: 'error', dependencies: { postgres: 'down' } });
+      .expect({
+        status: 'error',
+        dependencies: { postgres: 'down', redis: 'up' },
+      });
+
+    expect(JSON.stringify(response.body)).not.toContain('do-not-expose');
+  });
+
+  it('/api/v1/health/ready returns 503 without leaking Redis errors', async () => {
+    ping.mockRejectedValueOnce(
+      new Error('NOAUTH internal-redis-detail-do-not-expose'),
+    );
+
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/health/ready')
+      .expect(503)
+      .expect({
+        status: 'error',
+        dependencies: { postgres: 'up', redis: 'down' },
+      });
 
     expect(JSON.stringify(response.body)).not.toContain('do-not-expose');
   });
