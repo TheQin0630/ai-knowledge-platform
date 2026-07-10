@@ -1,47 +1,83 @@
+name: ai-knowledge-platform
+
 services:
-  mysql:
-    image: mysql:8.4
-    container_name: cms-mysql
-    restart: unless-stopped
+  postgres:
+    image: pgvector/pgvector:0.8.5-pg17-bookworm
     environment:
-      MYSQL_ROOT_PASSWORD: root123
-      MYSQL_DATABASE: cms_db
-      MYSQL_USER: cms_user
-      MYSQL_PASSWORD: cms_password
+      POSTGRES_DB: ${POSTGRES_DB:-ai_knowledge}
+      POSTGRES_USER: ${POSTGRES_USER:-ai_knowledge}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     ports:
-      - "3307:3306"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
-      - mysql_data:/var/lib/mysql
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
 
   redis:
-    image: redis:7
-    container_name: cms-redis
-    restart: unless-stopped
+    image: redis:8.4.4-alpine
+    command:
+      - sh
+      - -c
+      - exec redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD"
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
     ports:
-      - "6379:6379"
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=$${REDIS_PASSWORD} redis-cli ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
 
   api:
     build:
       context: .
-      args:
-        BASE_IMAGE: ${BASE_IMAGE:-python:3.12-slim}
-        PIP_INDEX_URL: ${PIP_INDEX_URL:-}
-        PIP_TRUSTED_HOST: ${PIP_TRUSTED_HOST:-}
-    container_name: cms-api
-    restart: unless-stopped
+      target: runtime
     environment:
-      APP_NAME: Async CMS API
-      DEBUG: "True"
-      SECRET_KEY: change-this-in-production
-      ACCESS_TOKEN_EXPIRE_MINUTES: "120"
-      DATABASE_URL: mysql+aiomysql://cms_user:cms_password@mysql:3306/cms_db
-      REDIS_URL: redis://redis:6379/0
-      RATE_LIMIT_PER_MINUTE: "60"
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ai_knowledge}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ai_knowledge}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
     ports:
-      - "8000:8000"
+      - "127.0.0.1:${API_PORT:-3000}:3000"
     depends_on:
-      - mysql
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/v1/health/live').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
 
 volumes:
-  mysql_data:
+  postgres_data:
+  redis_data:
