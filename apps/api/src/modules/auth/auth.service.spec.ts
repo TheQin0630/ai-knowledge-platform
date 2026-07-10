@@ -1,4 +1,8 @@
-import { ConflictException, UnauthorizedException } from '@nestjs/common';
+import {
+  ConflictException,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { User, UserRole } from '../identity/entities/user.entity';
 import { AuthService } from './auth.service';
@@ -293,6 +297,31 @@ describe('AuthService.refresh', () => {
       });
     },
   );
+
+  it('does not disguise a Redis rotation failure as an invalid refresh token', async () => {
+    const redisFailure = new ServiceUnavailableException({
+      error: {
+        code: 'AUTH_SESSION_UNAVAILABLE',
+        message: 'Authentication session service is unavailable',
+      },
+    });
+    verifyRefresh.mockResolvedValue({
+      sub: identity.userId,
+      sid: identity.sessionId,
+      role: identity.role,
+    });
+    issuePair.mockResolvedValue({
+      accessToken: 'unused-access-token',
+      refreshToken: 'unused-refresh-token',
+      accessExpiresIn: 900,
+      refreshExpiresIn: 604_800,
+    });
+    rotateSession.mockRejectedValue(redisFailure);
+
+    await expect(service.refresh('current-refresh-token')).rejects.toBe(
+      redisFailure,
+    );
+  });
 });
 
 describe('AuthService.logout', () => {

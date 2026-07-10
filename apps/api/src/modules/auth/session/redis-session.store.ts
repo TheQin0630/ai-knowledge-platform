@@ -1,4 +1,8 @@
-import { Inject, Injectable } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import Redis from 'ioredis';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
 
@@ -35,12 +39,14 @@ export class RedisSessionStore {
 
   async create(session: AuthSession, ttlSeconds: number): Promise<void> {
     assertTtl(ttlSeconds);
-    const result = await this.redis.set(
-      this.key(session.sessionId),
-      JSON.stringify(session),
-      'EX',
-      ttlSeconds,
-      'NX',
+    const result = await this.executeRedis(() =>
+      this.redis.set(
+        this.key(session.sessionId),
+        JSON.stringify(session),
+        'EX',
+        ttlSeconds,
+        'NX',
+      ),
     );
 
     if (result !== 'OK') {
@@ -50,22 +56,24 @@ export class RedisSessionStore {
 
   async get(sessionId: string): Promise<AuthSession | null> {
     const key = this.key(sessionId);
-    const raw = await this.redis.get(key);
+    const raw = await this.executeRedis(() => this.redis.get(key));
     if (raw === null) {
       return null;
     }
 
+    let parsed: unknown;
     try {
-      const parsed: unknown = JSON.parse(raw);
-      if (!isAuthSession(parsed) || parsed.sessionId !== sessionId) {
-        await this.redis.del(key);
-        return null;
-      }
-      return parsed;
+      parsed = JSON.parse(raw);
     } catch {
-      await this.redis.del(key);
+      await this.executeRedis(() => this.redis.del(key));
       return null;
     }
+
+    if (!isAuthSession(parsed) || parsed.sessionId !== sessionId) {
+      await this.executeRedis(() => this.redis.del(key));
+      return null;
+    }
+    return parsed;
   }
 
   async rotate(
@@ -77,14 +85,16 @@ export class RedisSessionStore {
   ): Promise<SessionRotationResult> {
     assertTtl(ttlSeconds);
     const result = Number(
-      await this.redis.eval(
-        rotateScript,
-        1,
-        this.key(sessionId),
-        userId,
-        currentDigest,
-        nextDigest,
-        ttlSeconds.toString(),
+      await this.executeRedis(() =>
+        this.redis.eval(
+          rotateScript,
+          1,
+          this.key(sessionId),
+          userId,
+          currentDigest,
+          nextDigest,
+          ttlSeconds.toString(),
+        ),
       ),
     );
 
@@ -94,11 +104,24 @@ export class RedisSessionStore {
   }
 
   async revoke(sessionId: string): Promise<void> {
-    await this.redis.del(this.key(sessionId));
+    await this.executeRedis(() => this.redis.del(this.key(sessionId)));
   }
 
   private key(sessionId: string): string {
     return `${sessionPrefix}${sessionId}`;
+  }
+
+  private async executeRedis<T>(operation: () => Promise<T>): Promise<T> {
+    try {
+      return await operation();
+    } catch {
+      throw new ServiceUnavailableException({
+        error: {
+          code: 'AUTH_SESSION_UNAVAILABLE',
+          message: 'Authentication session service is unavailable',
+        },
+      });
+    }
   }
 }
 

@@ -1,4 +1,8 @@
-import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import {
+  ExecutionContext,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import type { Request } from 'express';
 import { UserRole } from '../../identity/entities/user.entity';
 import { AuthSession, RedisSessionStore } from '../session/redis-session.store';
@@ -80,6 +84,20 @@ describe('AccessTokenGuard', () => {
     await expect(guard.canActivate(context)).rejects.toBeInstanceOf(
       UnauthorizedException,
     );
+  });
+
+  it('does not disguise a Redis failure as an invalid access token', async () => {
+    const { context } = createContext('Bearer access-token');
+    const redisFailure = new ServiceUnavailableException({
+      error: {
+        code: 'AUTH_SESSION_UNAVAILABLE',
+        message: 'Authentication session service is unavailable',
+      },
+    });
+    verifyAccess.mockResolvedValue(claims);
+    getSession.mockRejectedValue(redisFailure);
+
+    await expect(guard.canActivate(context)).rejects.toBe(redisFailure);
   });
 
   it('revokes and rejects a session whose user binding is inconsistent', async () => {

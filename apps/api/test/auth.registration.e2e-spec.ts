@@ -1,4 +1,4 @@
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, ServiceUnavailableException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
@@ -149,6 +149,38 @@ describe('Registration contract (e2e)', () => {
     expect(JSON.stringify(response.body)).not.toContain('next-refresh-token');
   });
 
+  it('marks issued and cleared refresh cookies Secure in production', async () => {
+    const previousNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+
+    try {
+      const loginResponse = await request(app.getHttpServer())
+        .post('/api/v1/auth/login')
+        .send({
+          email: 'owner@example.com',
+          password: 'correct horse battery staple',
+        })
+        .expect(200);
+      const logoutResponse = await request(app.getHttpServer())
+        .post('/api/v1/auth/logout')
+        .set('Cookie', 'refresh_token=current-refresh-token')
+        .expect(204);
+
+      expect(loginResponse.headers['set-cookie']).toEqual([
+        expect.stringMatching(
+          /^refresh_token=refresh-token; Max-Age=604800; Path=\/api\/v1\/auth; Expires=.*; HttpOnly; Secure; SameSite=Strict$/,
+        ),
+      ]);
+      expect(logoutResponse.headers['set-cookie']).toEqual([
+        expect.stringMatching(
+          /^refresh_token=; Path=\/api\/v1\/auth; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; Secure; SameSite=Strict$/,
+        ),
+      ]);
+    } finally {
+      process.env.NODE_ENV = previousNodeEnv;
+    }
+  });
+
   it('logs out idempotently and expires the scoped refresh cookie', async () => {
     const response = await request(app.getHttpServer())
       .post('/api/v1/auth/logout')
@@ -164,18 +196,42 @@ describe('Registration contract (e2e)', () => {
   });
 
   it('expires the refresh cookie even when server-side revocation fails', async () => {
-    logout.mockRejectedValueOnce(new Error('Redis unavailable'));
+    logout.mockRejectedValueOnce(sessionUnavailable());
 
     const response = await request(app.getHttpServer())
       .post('/api/v1/auth/logout')
       .set('Cookie', 'refresh_token=current-refresh-token')
-      .expect(500);
+      .expect(503);
 
     expect(response.headers['set-cookie']).toEqual([
       expect.stringMatching(
         /^refresh_token=; Path=\/api\/v1\/auth; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Strict$/,
       ),
     ]);
+    expect(response.body).toEqual({
+      error: {
+        code: 'AUTH_SESSION_UNAVAILABLE',
+        message: 'Authentication session service is unavailable',
+      },
+    });
+  });
+
+  it('returns a sanitized 503 when Redis session lookup fails', async () => {
+    getSession.mockRejectedValueOnce(sessionUnavailable());
+
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/auth/me')
+      .set('Authorization', 'Bearer access-token')
+      .expect(503)
+      .expect({
+        error: {
+          code: 'AUTH_SESSION_UNAVAILABLE',
+          message: 'Authentication session service is unavailable',
+        },
+      });
+
+    expect(JSON.stringify(response.body)).not.toContain('Redis');
+    expect(getCurrentUser).not.toHaveBeenCalled();
   });
 
   it('returns the current identity for an access token with an active session', async () => {
@@ -267,3 +323,12 @@ describe('Registration contract (e2e)', () => {
     expect(register).not.toHaveBeenCalled();
   });
 });
+
+function sessionUnavailable(): ServiceUnavailableException {
+  return new ServiceUnavailableException({
+    error: {
+      code: 'AUTH_SESSION_UNAVAILABLE',
+      message: 'Authentication session service is unavailable',
+    },
+  });
+}

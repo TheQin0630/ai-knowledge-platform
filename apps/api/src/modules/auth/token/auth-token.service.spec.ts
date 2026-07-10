@@ -90,6 +90,49 @@ describe('AuthTokenService', () => {
     await expect(tokens.verifyAccess(expired)).rejects.toThrow();
   });
 
+  it('rejects tokens with the wrong algorithm, issuer, audience, or no expiry', async () => {
+    const claims = {
+      sub: identity.userId,
+      sid: identity.sessionId,
+      jti: randomUUID(),
+      purpose: 'access',
+      role: UserRole.USER,
+    };
+    const invalidTokens = await Promise.all([
+      jwtService.signAsync(claims, {
+        secret: Buffer.from(accessSecret),
+        algorithm: 'HS384',
+        issuer: 'ai-knowledge-platform',
+        audience: 'ai-knowledge-api',
+        expiresIn: 900,
+      }),
+      jwtService.signAsync(claims, {
+        secret: Buffer.from(accessSecret),
+        algorithm: 'HS256',
+        issuer: 'attacker-controlled-issuer',
+        audience: 'ai-knowledge-api',
+        expiresIn: 900,
+      }),
+      jwtService.signAsync(claims, {
+        secret: Buffer.from(accessSecret),
+        algorithm: 'HS256',
+        issuer: 'ai-knowledge-platform',
+        audience: 'attacker-controlled-audience',
+        expiresIn: 900,
+      }),
+      jwtService.signAsync(claims, {
+        secret: Buffer.from(accessSecret),
+        algorithm: 'HS256',
+        issuer: 'ai-knowledge-platform',
+        audience: 'ai-knowledge-api',
+      }),
+    ]);
+
+    for (const token of invalidTokens) {
+      await expect(tokens.verifyAccess(token)).rejects.toThrow();
+    }
+  });
+
   it('rejects signed payloads with malformed identity claims', async () => {
     const malformed = await jwtService.signAsync(
       {
