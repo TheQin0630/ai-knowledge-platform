@@ -65,6 +65,20 @@ describe('Health endpoints (e2e)', () => {
       });
   });
 
+  it('returns a server-generated request ID instead of trusting a supplied one', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/health/live')
+      .set('X-Request-Id', 'attacker-controlled-request-id')
+      .expect(200);
+
+    expect(response.headers['x-request-id']).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
+    expect(response.headers['x-request-id']).not.toBe(
+      'attacker-controlled-request-id',
+    );
+  });
+
   it('/api/v1/health/ready (GET)', () => {
     return request(app.getHttpServer())
       .get('/api/v1/health/ready')
