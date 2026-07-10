@@ -1,0 +1,47 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: cms-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: cms_db
+      MYSQL_USER: cms_user
+      MYSQL_PASSWORD: cms_password
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  redis:
+    image: redis:7
+    container_name: cms-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+  api:
+    build:
+      context: .
+      args:
+        BASE_IMAGE: ${BASE_IMAGE:-python:3.12-slim}
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-}
+        PIP_TRUSTED_HOST: ${PIP_TRUSTED_HOST:-}
+    container_name: cms-api
+    restart: unless-stopped
+    environment:
+      APP_NAME: Async CMS API
+      DEBUG: "True"
+      SECRET_KEY: change-this-in-production
+      ACCESS_TOKEN_EXPIRE_MINUTES: "120"
+      DATABASE_URL: mysql+aiomysql://cms_user:cms_password@mysql:3306/cms_db
+      REDIS_URL: redis://redis:6379/0
+      RATE_LIMIT_PER_MINUTE: "60"
+    ports:
+      - "8000:8000"
+    depends_on:
+      - mysql
+      - redis
+
+volumes:
+  mysql_data:
