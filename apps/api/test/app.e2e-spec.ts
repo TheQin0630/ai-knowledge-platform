@@ -6,6 +6,7 @@ import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
 import { configureApp } from './../src/app.setup';
 import { DatabaseModule } from './../src/database/database.module';
+import { AuthModule } from './../src/modules/auth/auth.module';
 
 const query = jest.fn();
 
@@ -15,6 +16,9 @@ const query = jest.fn();
   exports: [getDataSourceToken()],
 })
 class TestDatabaseModule {}
+
+@Module({})
+class TestAuthModule {}
 
 describe('Health endpoints (e2e)', () => {
   let app: INestApplication<App>;
@@ -27,6 +31,8 @@ describe('Health endpoints (e2e)', () => {
     })
       .overrideModule(DatabaseModule)
       .useModule(TestDatabaseModule)
+      .overrideModule(AuthModule)
+      .useModule(TestAuthModule)
       .compile();
 
     app = moduleFixture.createNestApplication();

@@ -3,10 +3,15 @@ import {
   StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
 import { ConfigModule } from '@nestjs/config';
+import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import request from 'supertest';
+import { App } from 'supertest/types';
 import { DataSource } from 'typeorm';
+import { configureApp } from '../src/app.setup';
 import { DatabaseModule } from '../src/database/database.module';
 import { createPersistenceDataSource } from '../src/database/typeorm.options';
+import { AuthModule } from '../src/modules/auth/auth.module';
 import { User, UserRole } from '../src/modules/identity/entities/user.entity';
 
 jest.setTimeout(120_000);
@@ -135,8 +140,13 @@ describe('initial persistence migration', () => {
           load: [() => ({ DATABASE_URL: container.getConnectionUri() })],
         }),
         DatabaseModule,
+        AuthModule,
       ],
     }).compile();
+
+    const app: INestApplication<App> = nestModule.createNestApplication();
+    configureApp(app);
+    await app.init();
 
     try {
       const nestDataSource = nestModule.get(DataSource);
@@ -144,8 +154,62 @@ describe('initial persistence migration', () => {
       await expect(nestDataSource.query('SELECT 1')).resolves.toEqual([
         { '?column?': 1 },
       ]);
+
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'owner@example.com',
+          password: 'correct horse battery staple',
+          role: 'admin',
+        })
+        .expect(422);
+      await expect(
+        nestDataSource.query(`SELECT COUNT(*)::int AS count FROM users`),
+      ).resolves.toEqual([{ count: 0 }]);
+
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/register')
+        .send({
+          email: '  Owner@Example.COM ',
+          password: 'correct horse battery staple',
+        })
+        .expect(201)
+        .expect((response) => {
+          expect(response.body).toMatchObject({
+            email: 'owner@example.com',
+            role: UserRole.USER,
+          });
+          expect(response.body).not.toHaveProperty('passwordHash');
+        });
+
+      const storedIdentity = await nestDataSource.query<
+        Array<{ email: string; password_hash: string; role: string }>
+      >(`SELECT email, password_hash, role FROM users`);
+      expect(storedIdentity).toHaveLength(1);
+      expect(storedIdentity[0]).toMatchObject({
+        email: 'owner@example.com',
+        role: UserRole.USER,
+      });
+      expect(storedIdentity[0].password_hash).toMatch(/^\$argon2id\$/);
+      expect(storedIdentity[0].password_hash).not.toContain(
+        'correct horse battery staple',
+      );
+
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'owner@example.com',
+          password: 'another correct horse battery staple',
+        })
+        .expect(409)
+        .expect({
+          error: {
+            code: 'IDENTITY_CONFLICT',
+            message: 'An account with this email already exists',
+          },
+        });
     } finally {
-      await nestModule.close();
+      await app.close();
     }
   });
 });
