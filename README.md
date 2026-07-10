@@ -7,14 +7,17 @@ The active implementation is a strict TypeScript workspace built with NestJS. Th
 ## Current Status
 
 - NestJS 11 API workspace
-- Canonical liveness and PostgreSQL readiness endpoints under `/api/v1/health`
+- Dependency-free liveness and PostgreSQL/Redis readiness under `/api/v1/health`
 - PostgreSQL 17 with pgvector
 - Migration-driven TypeORM persistence with a normalized user identity schema
-- Redis for caching and background job coordination
+- Least-privilege authentication with Argon2id, purpose-bound JWTs, and revocable Redis sessions
+- Redis for authentication sessions, caching, and background job coordination
 - Non-root, read-only API container
 - Unit, end-to-end, Testcontainers integration, lint, typecheck, and build gates
 
-Authentication, document ingestion, retrieval, RAG, and evaluation modules are being delivered incrementally with tests.
+Document ingestion, retrieval, RAG, and evaluation modules are being delivered incrementally with tests.
+
+The authentication contract and verified failure semantics are documented in [`docs/auth-api-contract.md`](docs/auth-api-contract.md).
 
 ## Requirements
 

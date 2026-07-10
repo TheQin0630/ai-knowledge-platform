@@ -1,7 +1,7 @@
 # Authentication API Contract
 
 Status: Active
-Date: 2026-07-10
+Date: 2026-07-11
 Base path: `/api/v1/auth`
 
 ## Trust Boundaries
@@ -59,7 +59,7 @@ Response: `200 OK`
 }
 ```
 
-The response also sets a rotated `refresh_token` cookie.
+The response also sets a new `refresh_token` cookie.
 
 ### `POST /refresh`
 
@@ -69,7 +69,7 @@ Missing, expired, forged, wrong-purpose, session-mismatched, or replayed refresh
 
 ### `POST /logout`
 
-Logout is idempotent, deletes the server-side session when a valid refresh token identifies it, clears the refresh cookie, and returns `204 No Content`.
+Logout is idempotent, deletes the server-side session when a valid refresh token identifies it, clears the refresh cookie, and returns `204 No Content`. The cookie is still cleared if Redis revocation fails; that dependency failure returns `503 AUTH_SESSION_UNAVAILABLE`.
 
 ### `GET /me`
 
@@ -92,6 +92,8 @@ Required claims:
 
 Access and refresh tokens use separate secrets. Verification accepts only `HS256` and the expected purpose.
 
+Tokens with a forged signature, wrong algorithm, wrong issuer, wrong audience, missing or expired `exp`, malformed identity claims, or the wrong purpose are rejected before session state is trusted.
+
 ## Cookie Contract
 
 `refresh_token` attributes:
@@ -102,6 +104,8 @@ Access and refresh tokens use separate secrets. Verification accepts only `HS256
 - `Path=/api/v1/auth`
 - `Max-Age=604800` seconds
 
+Cookie clearing uses the same `Path`, `SameSite`, `HttpOnly`, and environment-dependent `Secure` attributes as cookie issuance.
+
 Same-origin deployment is assumed. Any future cross-site frontend requires an explicit CSRF design before relaxing `SameSite`.
 
 ## Validation and Errors
@@ -109,14 +113,15 @@ Same-origin deployment is assumed. Any future cross-site frontend requires an ex
 - Email is trimmed, lowercased, format-validated, and limited to 320 characters.
 - Password length is 12-128 characters to balance security and hashing resource bounds.
 - Passwords are hashed with Argon2id using at least 19 MiB memory, 2 iterations, and parallelism 1.
-- Every error uses `{ "error": { "code": "...", "message": "..." } }`.
-- Validation errors never echo passwords, tokens, hashes, database errors, or Redis errors.
+- Expected validation, credential, token, identity-conflict, and session-dependency errors use `{ "error": { "code": "...", "message": "..." } }`.
+- Redis session command failures return `503 AUTH_SESSION_UNAVAILABLE`; they are not disguised as invalid-token 401 responses.
+- Error responses never echo passwords, tokens, hashes, database errors, or Redis errors.
 
 ## Session State
 
 Redis key: `auth:session:{sid}` with a seven-day TTL.
 
-Stored fields are limited to user ID, refresh-token SHA-256 digest, and absolute expiry. Raw refresh tokens and passwords are never stored or logged.
+Stored fields are limited to session ID, user ID, and the refresh-token SHA-256 digest. Expiry is enforced by the Redis key TTL. Raw refresh tokens and passwords are never stored or logged.
 
 ## Official Sources
 

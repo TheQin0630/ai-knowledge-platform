@@ -1,7 +1,7 @@
 # AI Knowledge Platform Resume Evidence
 
 Status: In progress  
-Evidence date: 2026-07-10
+Evidence date: 2026-07-11
 
 ## Rule
 
@@ -15,13 +15,14 @@ Every resume claim must map to a commit plus a reproducible test, runtime check,
 | Established unit, E2E, lint, typecheck, and build gates | Root pnpm commands all pass | Supported |
 | Built a multi-stage Node 24 production image | Docker build completed from a 525 KB context | Supported |
 | Runs the API without root privileges on a read-only filesystem | Runtime UID 1000, read-only root, all Linux capabilities dropped | Supported |
-| Orchestrates API, pgvector/PostgreSQL, and Redis with health checks | Full Compose stack reported healthy | Supported |
+| Orchestrates API, pgvector/PostgreSQL, and Redis with health checks | Full Compose stack reported healthy; readiness now reports PostgreSQL and Redis independently while liveness performs no dependency calls | Supported |
 | Uses migration-driven PostgreSQL identity persistence with pgvector | Testcontainers and CLI passed upgrade, constraint, rollback, re-upgrade, Nest connection, and readiness checks | Supported |
-| Implements secure authentication, RAG, or AI evaluation | Not implemented | Do not claim |
+| Implements least-privilege authentication with revocable sessions | Registration, Argon2id, purpose-bound JWT, Cookie, Redis rotation/replay/revocation, dependency-failure, E2E, and Testcontainers attack tests passed | Supported |
+| Implements workspace authorization, RAG, or AI evaluation | Not implemented | Do not claim |
 
 ## Current Safe Wording
 
-> Replatformed a course-level Python CMS prototype into a strict TypeScript and NestJS workspace with automated quality gates and a hardened non-root container; established migration-driven PostgreSQL/pgvector persistence and Testcontainers coverage for reversible schema changes, normalized email uniqueness, and least-privilege user-role defaults.
+> Replatformed a course-level Python CMS prototype into a strict TypeScript and NestJS workspace with automated quality gates and a hardened non-root container; established migration-driven PostgreSQL/pgvector persistence and implemented least-privilege authentication with Argon2id, purpose-bound JWTs, atomic Redis refresh rotation, session revocation, and attack-chain tests.
 
 Chinese version:
 
