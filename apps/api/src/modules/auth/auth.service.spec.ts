@@ -8,12 +8,23 @@ import { User, UserRole } from '../identity/entities/user.entity';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { Argon2PasswordHasher } from './password/argon2-password-hasher';
+import { AuthSecurityEventLogger } from './security/auth-security-event.logger';
 import {
   AuthSession,
   RedisSessionStore,
   SessionRotationResult,
 } from './session/redis-session.store';
 import { AuthTokenService } from './token/auth-token.service';
+
+const requestId = '24924a67-4a89-4372-a3e3-e00f06e4c595';
+const logRefreshRejected = jest.fn();
+const logSessionRevoked = jest.fn();
+const logDependencyUnavailable = jest.fn();
+const securityEvents = {
+  refreshRejected: logRefreshRejected,
+  sessionRevoked: logSessionRevoked,
+  dependencyUnavailable: logDependencyUnavailable,
+} as unknown as AuthSecurityEventLogger;
 
 describe('AuthService.register', () => {
   const create = jest.fn();
@@ -25,7 +36,13 @@ describe('AuthService.register', () => {
   } as unknown as Argon2PasswordHasher;
   const tokens = { issuePair: jest.fn() } as unknown as AuthTokenService;
   const sessions = { create: jest.fn() } as unknown as RedisSessionStore;
-  const service = new AuthService(users, hasher, tokens, sessions);
+  const service = new AuthService(
+    users,
+    hasher,
+    tokens,
+    sessions,
+    securityEvents,
+  );
 
   beforeEach(() => {
     jest.resetAllMocks();
@@ -101,7 +118,13 @@ describe('AuthService.login', () => {
   const tokens = { issuePair } as unknown as AuthTokenService;
   const createSession = jest.fn<Promise<void>, [AuthSession, number]>();
   const sessions = { create: createSession } as unknown as RedisSessionStore;
-  const service = new AuthService(users, hasher, tokens, sessions);
+  const service = new AuthService(
+    users,
+    hasher,
+    tokens,
+    sessions,
+    securityEvents,
+  );
 
   beforeEach(() => {
     jest.resetAllMocks();
@@ -197,7 +220,13 @@ describe('AuthService.refresh', () => {
     [string, string, string, string, number]
   >();
   const sessions = { rotate: rotateSession } as unknown as RedisSessionStore;
-  const service = new AuthService(users, hasher, tokens, sessions);
+  const service = new AuthService(
+    users,
+    hasher,
+    tokens,
+    sessions,
+    securityEvents,
+  );
   const identity = {
     userId: '6ac80d20-3e9d-4f1d-a98d-807aca81b28f',
     sessionId: '42f1d65e-f1ba-49d7-a1d1-9bb756d8f15f',
@@ -222,7 +251,7 @@ describe('AuthService.refresh', () => {
     });
     rotateSession.mockResolvedValue('rotated');
 
-    const result = await service.refresh('current-refresh-token');
+    const result = await service.refresh('current-refresh-token', requestId);
 
     expect(issuePair).toHaveBeenCalledWith(identity);
     expect(rotateSession).toHaveBeenCalledTimes(1);
@@ -252,7 +281,7 @@ describe('AuthService.refresh', () => {
 
       let thrown: unknown;
       try {
-        await service.refresh(refreshToken);
+        await service.refresh(refreshToken, requestId);
       } catch (error) {
         thrown = error;
       }
@@ -266,6 +295,10 @@ describe('AuthService.refresh', () => {
       });
       expect(issuePair).not.toHaveBeenCalled();
       expect(rotateSession).not.toHaveBeenCalled();
+      expect(logRefreshRejected).toHaveBeenCalledWith(
+        requestId,
+        'invalid_token',
+      );
     },
   );
 
@@ -286,7 +319,7 @@ describe('AuthService.refresh', () => {
       rotateSession.mockResolvedValue(rotationResult);
 
       await expect(
-        service.refresh('current-refresh-token'),
+        service.refresh('current-refresh-token', requestId),
       ).rejects.toMatchObject({
         response: {
           error: {
@@ -295,6 +328,10 @@ describe('AuthService.refresh', () => {
           },
         },
       });
+      expect(logRefreshRejected).toHaveBeenCalledWith(
+        requestId,
+        rotationResult === 'replay' ? 'replay' : 'session_missing',
+      );
     },
   );
 
@@ -318,9 +355,10 @@ describe('AuthService.refresh', () => {
     });
     rotateSession.mockRejectedValue(redisFailure);
 
-    await expect(service.refresh('current-refresh-token')).rejects.toBe(
-      redisFailure,
-    );
+    await expect(
+      service.refresh('current-refresh-token', requestId),
+    ).rejects.toBe(redisFailure);
+    expect(logDependencyUnavailable).toHaveBeenCalledWith(requestId, 'refresh');
   });
 });
 
@@ -331,7 +369,13 @@ describe('AuthService.logout', () => {
   const tokens = { verifyRefresh } as unknown as AuthTokenService;
   const revokeSession = jest.fn<Promise<void>, [string]>();
   const sessions = { revoke: revokeSession } as unknown as RedisSessionStore;
-  const service = new AuthService(users, hasher, tokens, sessions);
+  const service = new AuthService(
+    users,
+    hasher,
+    tokens,
+    sessions,
+    securityEvents,
+  );
 
   beforeEach(() => {
     jest.resetAllMocks();
@@ -343,11 +387,12 @@ describe('AuthService.logout', () => {
     });
     revokeSession.mockResolvedValue();
 
-    await service.logout('valid-refresh-token');
+    await service.logout('valid-refresh-token', requestId);
 
     expect(revokeSession).toHaveBeenCalledWith(
       '42f1d65e-f1ba-49d7-a1d1-9bb756d8f15f',
     );
+    expect(logSessionRevoked).toHaveBeenCalledWith(requestId);
   });
 
   it.each([undefined, '', 'forged-or-expired-token'])(
@@ -355,11 +400,32 @@ describe('AuthService.logout', () => {
     async (refreshToken) => {
       verifyRefresh.mockRejectedValue(new Error('sensitive JWT detail'));
 
-      await expect(service.logout(refreshToken)).resolves.toBeUndefined();
+      await expect(
+        service.logout(refreshToken, requestId),
+      ).resolves.toBeUndefined();
 
       expect(revokeSession).not.toHaveBeenCalled();
+      expect(logSessionRevoked).not.toHaveBeenCalled();
     },
   );
+
+  it('records a dependency event when session revocation is unavailable', async () => {
+    const redisFailure = new ServiceUnavailableException({
+      error: {
+        code: 'AUTH_SESSION_UNAVAILABLE',
+        message: 'Authentication session service is unavailable',
+      },
+    });
+    verifyRefresh.mockResolvedValue({
+      sid: '42f1d65e-f1ba-49d7-a1d1-9bb756d8f15f',
+    });
+    revokeSession.mockRejectedValue(redisFailure);
+
+    await expect(service.logout('valid-refresh-token', requestId)).rejects.toBe(
+      redisFailure,
+    );
+    expect(logDependencyUnavailable).toHaveBeenCalledWith(requestId, 'logout');
+  });
 });
 
 describe('AuthService.getCurrentUser', () => {
@@ -368,7 +434,13 @@ describe('AuthService.getCurrentUser', () => {
   const hasher = {} as Argon2PasswordHasher;
   const tokens = {} as AuthTokenService;
   const sessions = {} as RedisSessionStore;
-  const service = new AuthService(users, hasher, tokens, sessions);
+  const service = new AuthService(
+    users,
+    hasher,
+    tokens,
+    sessions,
+    securityEvents,
+  );
 
   beforeEach(() => {
     jest.resetAllMocks();

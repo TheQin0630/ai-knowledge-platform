@@ -1,12 +1,15 @@
 import {
   CanActivate,
   ExecutionContext,
+  HttpException,
+  HttpStatus,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import type { Request } from 'express';
+import type { ContextualRequest } from '../../../http/request-context';
 import { UserRole } from '../../identity/entities/user.entity';
 import { RedisSessionStore } from '../session/redis-session.store';
+import { AuthSecurityEventLogger } from '../security/auth-security-event.logger';
 import { AuthTokenService } from '../token/auth-token.service';
 
 export interface AuthPrincipal {
@@ -15,7 +18,7 @@ export interface AuthPrincipal {
   role: UserRole;
 }
 
-export interface AuthenticatedRequest extends Request {
+export interface AuthenticatedRequest extends ContextualRequest {
   auth: AuthPrincipal;
 }
 
@@ -24,6 +27,7 @@ export class AccessTokenGuard implements CanActivate {
   constructor(
     private readonly tokens: AuthTokenService,
     private readonly sessions: RedisSessionStore,
+    private readonly securityEvents: AuthSecurityEventLogger,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -40,12 +44,31 @@ export class AccessTokenGuard implements CanActivate {
       throw invalidAccessToken();
     }
 
-    const session = await this.sessions.get(claims.sid);
+    let session;
+    try {
+      session = await this.sessions.get(claims.sid);
+    } catch (error) {
+      if (hasStatus(error, HttpStatus.SERVICE_UNAVAILABLE)) {
+        this.securityEvents.dependencyUnavailable(request.requestId, 'access');
+      }
+      throw error;
+    }
     if (!session) {
       throw invalidAccessToken();
     }
     if (session.userId !== claims.sub) {
-      await this.sessions.revoke(claims.sid);
+      this.securityEvents.sessionBindingMismatch(request.requestId);
+      try {
+        await this.sessions.revoke(claims.sid);
+      } catch (error) {
+        if (hasStatus(error, HttpStatus.SERVICE_UNAVAILABLE)) {
+          this.securityEvents.dependencyUnavailable(
+            request.requestId,
+            'access',
+          );
+        }
+        throw error;
+      }
       throw invalidAccessToken();
     }
 
@@ -56,6 +79,10 @@ export class AccessTokenGuard implements CanActivate {
     };
     return true;
   }
+}
+
+function hasStatus(error: unknown, status: number): boolean {
+  return error instanceof HttpException && error.getStatus() === status;
 }
 
 function readBearerToken(

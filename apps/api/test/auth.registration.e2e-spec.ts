@@ -1,4 +1,8 @@
-import { INestApplication, ServiceUnavailableException } from '@nestjs/common';
+import {
+  INestApplication,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
@@ -11,6 +15,7 @@ import type {
 import { AuthController } from '../src/modules/auth/auth.controller';
 import { AuthService } from '../src/modules/auth/auth.service';
 import { AccessTokenGuard } from '../src/modules/auth/guard/access-token.guard';
+import { AuthSecurityEventLogger } from '../src/modules/auth/security/auth-security-event.logger';
 import { RedisSessionStore } from '../src/modules/auth/session/redis-session.store';
 import { AuthTokenService } from '../src/modules/auth/token/auth-token.service';
 import { UserRole } from '../src/modules/identity/entities/user.entity';
@@ -27,6 +32,9 @@ describe('Registration contract (e2e)', () => {
     Promise<LoginLimitDecision>,
     [LoginAttempt]
   >();
+  const logLoginSucceeded = jest.fn();
+  const logLoginRejected = jest.fn();
+  const logDependencyUnavailable = jest.fn();
   let app: INestApplication<App>;
 
   beforeEach(async () => {
@@ -82,6 +90,9 @@ describe('Registration contract (e2e)', () => {
       refreshTokenDigest: 'digest',
     });
     consumeLoginAttempt.mockReset().mockResolvedValue({ allowed: true });
+    logLoginSucceeded.mockReset();
+    logLoginRejected.mockReset();
+    logDependencyUnavailable.mockReset();
 
     const moduleFixture = await Test.createTestingModule({
       controllers: [AuthController],
@@ -100,6 +111,14 @@ describe('Registration contract (e2e)', () => {
         {
           provide: LoginAttemptLimiter,
           useValue: { consume: consumeLoginAttempt },
+        },
+        {
+          provide: AuthSecurityEventLogger,
+          useValue: {
+            loginSucceeded: logLoginSucceeded,
+            loginRejected: logLoginRejected,
+            dependencyUnavailable: logDependencyUnavailable,
+          },
         },
         { provide: AuthTokenService, useValue: { verifyAccess } },
         { provide: RedisSessionStore, useValue: { get: getSession } },
@@ -146,7 +165,37 @@ describe('Registration contract (e2e)', () => {
     expect(typeof consumeLoginAttempt.mock.calls[0][0].sourceAddress).toBe(
       'string',
     );
+    expect(logLoginSucceeded).toHaveBeenCalledWith(
+      response.headers['x-request-id'],
+    );
     expect(JSON.stringify(response.body)).not.toContain('refresh-token');
+  });
+
+  it('records invalid credentials without logging submitted identity or password', async () => {
+    login.mockRejectedValueOnce(
+      new UnauthorizedException({
+        error: {
+          code: 'INVALID_CREDENTIALS',
+          message: 'Invalid email or password',
+        },
+      }),
+    );
+
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({
+        email: 'owner@example.com',
+        password: 'correct horse battery staple',
+      })
+      .expect(401);
+
+    expect(logLoginRejected).toHaveBeenCalledWith(
+      response.headers['x-request-id'],
+      'invalid_credentials',
+    );
+    expect(JSON.stringify(logLoginRejected.mock.calls)).not.toMatch(
+      /owner@example\.com|correct horse battery staple/,
+    );
   });
 
   it('returns 429 with Retry-After before credential verification when limited', async () => {
@@ -171,6 +220,10 @@ describe('Registration contract (e2e)', () => {
 
     expect(response.headers['retry-after']).toBe('317');
     expect(login).not.toHaveBeenCalled();
+    expect(logLoginRejected).toHaveBeenCalledWith(
+      response.headers['x-request-id'],
+      'rate_limited',
+    );
   });
 
   it('ignores untrusted X-Forwarded-For values by default', async () => {
@@ -208,7 +261,7 @@ describe('Registration contract (e2e)', () => {
       }),
     );
 
-    await request(app.getHttpServer())
+    const response = await request(app.getHttpServer())
       .post('/api/v1/auth/login')
       .send({
         email: 'owner@example.com',
@@ -223,6 +276,10 @@ describe('Registration contract (e2e)', () => {
       });
 
     expect(login).not.toHaveBeenCalled();
+    expect(logDependencyUnavailable).toHaveBeenCalledWith(
+      response.headers['x-request-id'],
+      'login',
+    );
   });
 
   it('refreshes only from the strict cookie and replaces it', async () => {
@@ -237,7 +294,10 @@ describe('Registration contract (e2e)', () => {
         expiresIn: 900,
       });
 
-    expect(refresh).toHaveBeenCalledWith('current-refresh-token');
+    expect(refresh).toHaveBeenCalledWith(
+      'current-refresh-token',
+      response.headers['x-request-id'],
+    );
     expect(response.headers['set-cookie']).toEqual([
       expect.stringMatching(
         /^refresh_token=next-refresh-token; Max-Age=604800; Path=\/api\/v1\/auth; Expires=.*; HttpOnly; SameSite=Strict$/,
@@ -284,7 +344,10 @@ describe('Registration contract (e2e)', () => {
       .set('Cookie', 'refresh_token=current-refresh-token')
       .expect(204);
 
-    expect(logout).toHaveBeenCalledWith('current-refresh-token');
+    expect(logout).toHaveBeenCalledWith(
+      'current-refresh-token',
+      response.headers['x-request-id'],
+    );
     expect(response.headers['set-cookie']).toEqual([
       expect.stringMatching(
         /^refresh_token=; Path=\/api\/v1\/auth; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Strict$/,

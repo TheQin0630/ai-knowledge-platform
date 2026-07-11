@@ -10,19 +10,22 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
-import type { Request, Response } from 'express';
+import type { Response } from 'express';
+import type { ContextualRequest } from '../../http/request-context';
 import { LoginAttemptLimiter } from './abuse/login-attempt-limiter';
 import { AuthService, PublicUser, RefreshResult } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { AccessTokenGuard } from './guard/access-token.guard';
 import type { AuthenticatedRequest } from './guard/access-token.guard';
+import { AuthSecurityEventLogger } from './security/auth-security-event.logger';
 
 @Controller('auth')
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly loginAttemptLimiter: LoginAttemptLimiter,
+    private readonly securityEvents: AuthSecurityEventLogger,
   ) {}
 
   @Post('register')
@@ -34,15 +37,24 @@ export class AuthController {
   @HttpCode(200)
   async login(
     @Body() input: LoginDto,
-    @Req() request: Request,
+    @Req() request: ContextualRequest,
     @Res({ passthrough: true }) response: Response,
   ) {
-    const limit = await this.loginAttemptLimiter.consume({
-      sourceAddress:
-        request.ip ?? request.socket.remoteAddress ?? 'unknown-source',
-      email: input.email,
-    });
+    let limit;
+    try {
+      limit = await this.loginAttemptLimiter.consume({
+        sourceAddress:
+          request.ip ?? request.socket.remoteAddress ?? 'unknown-source',
+        email: input.email,
+      });
+    } catch (error) {
+      if (hasStatus(error, HttpStatus.SERVICE_UNAVAILABLE)) {
+        this.securityEvents.dependencyUnavailable(request.requestId, 'login');
+      }
+      throw error;
+    }
     if (!limit.allowed) {
+      this.securityEvents.loginRejected(request.requestId, 'rate_limited');
       response.setHeader('Retry-After', limit.retryAfterSeconds.toString());
       throw new HttpException(
         {
@@ -55,7 +67,21 @@ export class AuthController {
       );
     }
 
-    const result = await this.authService.login(input);
+    let result;
+    try {
+      result = await this.authService.login(input);
+    } catch (error) {
+      if (hasStatus(error, HttpStatus.UNAUTHORIZED)) {
+        this.securityEvents.loginRejected(
+          request.requestId,
+          'invalid_credentials',
+        );
+      } else if (hasStatus(error, HttpStatus.SERVICE_UNAVAILABLE)) {
+        this.securityEvents.dependencyUnavailable(request.requestId, 'login');
+      }
+      throw error;
+    }
+    this.securityEvents.loginSucceeded(request.requestId);
     setRefreshCookie(response, result);
     return result.body;
   }
@@ -63,11 +89,12 @@ export class AuthController {
   @Post('refresh')
   @HttpCode(200)
   async refresh(
-    @Req() request: Request,
+    @Req() request: ContextualRequest,
     @Res({ passthrough: true }) response: Response,
   ) {
     const result = await this.authService.refresh(
       readRefreshCookie(request.cookies),
+      request.requestId,
     );
     setRefreshCookie(response, result);
     return result.body;
@@ -76,11 +103,14 @@ export class AuthController {
   @Post('logout')
   @HttpCode(204)
   async logout(
-    @Req() request: Request,
+    @Req() request: ContextualRequest,
     @Res({ passthrough: true }) response: Response,
   ): Promise<void> {
     try {
-      await this.authService.logout(readRefreshCookie(request.cookies));
+      await this.authService.logout(
+        readRefreshCookie(request.cookies),
+        request.requestId,
+      );
     } finally {
       clearRefreshCookie(response);
     }
@@ -91,6 +121,10 @@ export class AuthController {
   me(@Req() request: AuthenticatedRequest): Promise<PublicUser> {
     return this.authService.getCurrentUser(request.auth.userId);
   }
+}
+
+function hasStatus(error: unknown, status: number): boolean {
+  return error instanceof HttpException && error.getStatus() === status;
 }
 
 function readRefreshCookie(cookies: unknown): string | undefined {

@@ -8,6 +8,11 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { AccessTokenGuard } from './guard/access-token.guard';
 import { Argon2PasswordHasher } from './password/argon2-password-hasher';
+import {
+  AUTH_SECURITY_EVENT_SINK,
+  AuthSecurityEventLogger,
+  createAuthSecurityEventSink,
+} from './security/auth-security-event.logger';
 import { RedisSessionStore } from './session/redis-session.store';
 import { AuthTokenService } from './token/auth-token.service';
 
@@ -21,6 +26,11 @@ import { AuthTokenService } from './token/auth-token.service';
   providers: [
     AuthService,
     LoginAttemptLimiter,
+    {
+      provide: AUTH_SECURITY_EVENT_SINK,
+      useFactory: createAuthSecurityEventSink,
+    },
+    AuthSecurityEventLogger,
     Argon2PasswordHasher,
     AuthTokenService,
     RedisSessionStore,

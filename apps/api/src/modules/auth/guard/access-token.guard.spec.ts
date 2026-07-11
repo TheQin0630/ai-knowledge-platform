@@ -4,9 +4,11 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import type { Request } from 'express';
+import type { ContextualRequest } from '../../../http/request-context';
 import { UserRole } from '../../identity/entities/user.entity';
 import { AuthSession, RedisSessionStore } from '../session/redis-session.store';
 import { AuthTokenClaims, AuthTokenService } from '../token/auth-token.service';
+import { AuthSecurityEventLogger } from '../security/auth-security-event.logger';
 import { AccessTokenGuard, AuthenticatedRequest } from './access-token.guard';
 
 describe('AccessTokenGuard', () => {
@@ -18,7 +20,13 @@ describe('AccessTokenGuard', () => {
     get: getSession,
     revoke: revokeSession,
   } as unknown as RedisSessionStore;
-  const guard = new AccessTokenGuard(tokens, sessions);
+  const logBindingMismatch = jest.fn();
+  const logDependencyUnavailable = jest.fn();
+  const securityEvents = {
+    sessionBindingMismatch: logBindingMismatch,
+    dependencyUnavailable: logDependencyUnavailable,
+  } as unknown as AuthSecurityEventLogger;
+  const guard = new AccessTokenGuard(tokens, sessions, securityEvents);
   const claims: AuthTokenClaims = {
     sub: '6ac80d20-3e9d-4f1d-a98d-807aca81b28f',
     sid: '42f1d65e-f1ba-49d7-a1d1-9bb756d8f15f',
@@ -98,6 +106,10 @@ describe('AccessTokenGuard', () => {
     getSession.mockRejectedValue(redisFailure);
 
     await expect(guard.canActivate(context)).rejects.toBe(redisFailure);
+    expect(logDependencyUnavailable).toHaveBeenCalledWith(
+      claimsRequestId,
+      'access',
+    );
   });
 
   it('revokes and rejects a session whose user binding is inconsistent', async () => {
@@ -114,6 +126,7 @@ describe('AccessTokenGuard', () => {
       response: invalidAccessResponse,
     });
     expect(revokeSession).toHaveBeenCalledWith(claims.sid);
+    expect(logBindingMismatch).toHaveBeenCalledWith(claimsRequestId);
   });
 });
 
@@ -130,9 +143,12 @@ function createContext(authorization: string | undefined): {
 } {
   const request = {
     headers: authorization === undefined ? {} : { authorization },
-  } as Request;
+    requestId: claimsRequestId,
+  } as ContextualRequest;
   const context = {
     switchToHttp: () => ({ getRequest: () => request }),
   } as unknown as ExecutionContext;
   return { context, request };
 }
+
+const claimsRequestId = 'ba005f1a-9532-46f3-9108-e8d473d64cb7';

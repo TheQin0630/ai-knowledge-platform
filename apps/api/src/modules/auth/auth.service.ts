@@ -1,5 +1,7 @@
 import {
   ConflictException,
+  HttpException,
+  HttpStatus,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -9,6 +11,7 @@ import { Repository } from 'typeorm';
 import { User, UserRole } from '../identity/entities/user.entity';
 import { RegisterDto } from './dto/register.dto';
 import { Argon2PasswordHasher } from './password/argon2-password-hasher';
+import { AuthSecurityEventLogger } from './security/auth-security-event.logger';
 import { RedisSessionStore } from './session/redis-session.store';
 import { AuthTokenService } from './token/auth-token.service';
 
@@ -56,6 +59,7 @@ export class AuthService {
     private readonly passwordHasher: Argon2PasswordHasher,
     private readonly tokens: AuthTokenService,
     private readonly sessions: RedisSessionStore,
+    private readonly securityEvents: AuthSecurityEventLogger,
   ) {}
 
   async register(input: RegisterDto): Promise<PublicUser> {
@@ -134,8 +138,12 @@ export class AuthService {
     };
   }
 
-  async refresh(refreshToken: string | undefined): Promise<RefreshResult> {
+  async refresh(
+    refreshToken: string | undefined,
+    requestId: string,
+  ): Promise<RefreshResult> {
     if (!refreshToken) {
+      this.securityEvents.refreshRejected(requestId, 'invalid_token');
       throw invalidRefreshToken();
     }
 
@@ -143,6 +151,7 @@ export class AuthService {
     try {
       claims = await this.tokens.verifyRefresh(refreshToken);
     } catch {
+      this.securityEvents.refreshRejected(requestId, 'invalid_token');
       throw invalidRefreshToken();
     }
 
@@ -151,15 +160,27 @@ export class AuthService {
       sessionId: claims.sid,
       role: claims.role,
     });
-    const rotation = await this.sessions.rotate(
-      claims.sid,
-      claims.sub,
-      digestToken(refreshToken),
-      digestToken(pair.refreshToken),
-      pair.refreshExpiresIn,
-    );
+    let rotation;
+    try {
+      rotation = await this.sessions.rotate(
+        claims.sid,
+        claims.sub,
+        digestToken(refreshToken),
+        digestToken(pair.refreshToken),
+        pair.refreshExpiresIn,
+      );
+    } catch (error) {
+      if (hasStatus(error, HttpStatus.SERVICE_UNAVAILABLE)) {
+        this.securityEvents.dependencyUnavailable(requestId, 'refresh');
+      }
+      throw error;
+    }
 
     if (rotation !== 'rotated') {
+      this.securityEvents.refreshRejected(
+        requestId,
+        rotation === 'replay' ? 'replay' : 'session_missing',
+      );
       throw invalidRefreshToken();
     }
 
@@ -174,7 +195,10 @@ export class AuthService {
     };
   }
 
-  async logout(refreshToken: string | undefined): Promise<void> {
+  async logout(
+    refreshToken: string | undefined,
+    requestId: string,
+  ): Promise<void> {
     if (!refreshToken) {
       return;
     }
@@ -186,7 +210,15 @@ export class AuthService {
       return;
     }
 
-    await this.sessions.revoke(claims.sid);
+    try {
+      await this.sessions.revoke(claims.sid);
+    } catch (error) {
+      if (hasStatus(error, HttpStatus.SERVICE_UNAVAILABLE)) {
+        this.securityEvents.dependencyUnavailable(requestId, 'logout');
+      }
+      throw error;
+    }
+    this.securityEvents.sessionRevoked(requestId);
   }
 
   async getCurrentUser(userId: string): Promise<PublicUser> {
@@ -204,6 +236,10 @@ export class AuthService {
     }
     return toPublicUser(user);
   }
+}
+
+function hasStatus(error: unknown, status: number): boolean {
+  return error instanceof HttpException && error.getStatus() === status;
 }
 
 function digestToken(token: string): string {
