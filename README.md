@@ -1,12 +1,13 @@
 # AI Knowledge Platform
 
-An enterprise-oriented AI knowledge backend for document ingestion, hybrid retrieval, cited RAG responses, and reproducible evaluation.
+An enterprise-oriented AI knowledge platform for document ingestion, hybrid retrieval, cited RAG responses, and reproducible evaluation.
 
 The active implementation is a strict TypeScript workspace built with NestJS. The previous FastAPI CMS is preserved in Git under the `legacy-fastapi-baseline` tag and is not deployable.
 
 ## Current Status
 
 - NestJS 11 API workspace
+- React 19 and Vite web workspace with a responsive authenticated workbench
 - Dependency-free liveness and PostgreSQL/Redis readiness under `/api/v1/health`
 - PostgreSQL 17 with pgvector
 - Migration-driven TypeORM persistence with a normalized user identity schema
@@ -31,15 +32,26 @@ The authentication contract and verified failure semantics are documented in [`d
 ```powershell
 pnpm install --frozen-lockfile
 pnpm test
+pnpm test:web
 pnpm test:e2e
 pnpm test:integration
+pnpm test:web:e2e
 pnpm lint
 pnpm typecheck
 pnpm build
 pnpm dev
+pnpm dev:web
 ```
 
-The API listens on `http://localhost:3000` by default.
+The API listens on `http://localhost:3000` by default. The web application listens on `http://127.0.0.1:5173` and proxies same-origin `/api` requests to the API during development. Run `pnpm dev` and `pnpm dev:web` in separate terminals.
+
+Before the first browser test run, install the repository-local Chromium runtime:
+
+```powershell
+$env:PLAYWRIGHT_BROWSERS_PATH = '0'
+pnpm --filter @ai-knowledge/web exec playwright install chromium
+```
+
 Integration tests require a running Docker engine and clean up their temporary containers automatically.
 
 ## Database Migrations
@@ -71,6 +83,7 @@ Do not deploy with values from `.env.example`.
 
 ```text
 apps/api/         NestJS HTTP API
+apps/web/         React web application
 docs/             Specifications, decisions, and evidence
 Dockerfile        Multi-stage production image
 docker-compose.yml Local PostgreSQL, Redis, and API stack
