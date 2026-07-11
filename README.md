@@ -2,7 +2,7 @@
 
 An enterprise-oriented AI knowledge platform for document ingestion, hybrid retrieval, cited RAG responses, and reproducible evaluation.
 
-The active implementation is a strict TypeScript workspace built with NestJS. The previous FastAPI CMS is preserved in Git under the `legacy-fastapi-baseline` tag and is not deployable.
+The implementation is a strict TypeScript workspace built with NestJS and React.
 
 ## Current Status
 

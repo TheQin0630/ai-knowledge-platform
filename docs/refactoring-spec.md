@@ -6,7 +6,7 @@ Decision: ADR-002
 
 ## Objective
 
-Replace the legacy CMS with an enterprise-oriented AI knowledge backend that ingests documents, performs hybrid retrieval, returns cited RAG answers, and proves quality through reproducible evaluation.
+Build an enterprise-oriented AI knowledge platform that ingests documents, performs hybrid retrieval, returns cited RAG answers, and proves quality through reproducible evaluation.
 
 Success means the repository demonstrates secure backend engineering and measurable AI application behavior. Framework names alone are not success criteria.
 
@@ -29,7 +29,7 @@ Success means the repository demonstrates secure backend engineering and measura
 - Kubernetes, Kafka, or microservices for portfolio keywords;
 - a separate vector database before pgvector limits are demonstrated;
 - an autonomous general-purpose agent;
-- a broad CMS feature set unrelated to knowledge ingestion and retrieval.
+- broad content-management features unrelated to knowledge ingestion and retrieval.
 
 ## Technology Baseline
 
@@ -119,7 +119,7 @@ docker compose up --build --wait
 
 Delivered:
 
-- Git baseline and legacy tag;
+- versioned Git baseline and quality gates;
 - strict NestJS workspace and quality gates;
 - non-root, read-only API image;
 - healthy pgvector/PostgreSQL, Redis, and API Compose stack;

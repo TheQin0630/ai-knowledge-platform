@@ -10,9 +10,7 @@ Accepted
 
 ## Context
 
-The original project was a small FastAPI CMS with MySQL and Redis. Its code and runtime evidence showed insecure role assignment, placeholder secrets, a default administrator, unbounded inputs and lists, vulnerable dependencies, no migrations, and no automated tests.
-
-The target role is AI application development. A conventional CMS does not demonstrate the retrieval, model integration, evaluation, tracing, and asynchronous ingestion skills expected from that role. The owner also requested a backend stack other than FastAPI.
+The platform needs secure identity, document ingestion, hybrid retrieval, model integration, evaluation, tracing, and asynchronous processing within a maintainable TypeScript system.
 
 ## Decision
 
@@ -30,13 +28,7 @@ Build a modular AI knowledge platform using:
 
 Start as a modular monolith plus background worker. Split services only when an independently scaled workload and measured operational need justify it.
 
-The previous implementation remains available under the Git tag `legacy-fastapi-baseline` and is explicitly non-deployable.
-
 ## Alternatives Considered
-
-### Keep FastAPI
-
-Rejected for this portfolio direction at the owner's request. Python remains a valid production choice, but keeping the framework would not satisfy the desired language and architecture differentiation.
 
 ### Spring Boot and Spring AI
 
@@ -61,8 +53,6 @@ Positive:
 
 Negative:
 
-- the application code is a rewrite rather than an in-place refactor;
-- previous Python implementation knowledge does not transfer line-for-line;
 - TypeScript AI libraries may not cover every local-model or scientific workflow;
 - background jobs and model providers introduce new failure and cost controls.
 

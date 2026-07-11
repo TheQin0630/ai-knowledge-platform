@@ -11,7 +11,7 @@ Every resume claim must map to a commit plus a reproducible test, runtime check,
 
 | Claim | Evidence | Resume status |
 | --- | --- | --- |
-| Migrated from a FastAPI prototype to a strict NestJS workspace | Git tag `legacy-fastapi-baseline` and commits on `refactor/nestjs-ai-platform` | Supported |
+| Built a strict NestJS and React TypeScript workspace | Commits on `refactor/nestjs-ai-platform` and passing root quality gates | Supported |
 | Established unit, E2E, lint, typecheck, and build gates | Root pnpm commands all pass | Supported |
 | Built a multi-stage Node 24 production image | Docker build completed from a 525 KB context | Supported |
 | Runs the API without root privileges on a read-only filesystem | Runtime UID 1000, read-only root, all Linux capabilities dropped | Supported |
@@ -22,11 +22,7 @@ Every resume claim must map to a commit plus a reproducible test, runtime check,
 
 ## Current Safe Wording
 
-> Replatformed a course-level Python CMS prototype into a strict TypeScript and NestJS workspace with automated quality gates and a hardened non-root container; established migration-driven PostgreSQL/pgvector persistence and implemented least-privilege authentication with Argon2id, purpose-bound JWTs, atomic Redis refresh rotation, distributed login abuse controls, correlated security events, and Testcontainers attack-chain coverage.
-
-Chinese version:
-
-> 将课程级 Python CMS 原型迁移为 TypeScript 严格模式的 NestJS 工程，建立自动化质量门禁与非 root 容器运行基线；使用 TypeORM 构建迁移驱动的 PostgreSQL/pgvector 持久化层，并通过 Testcontainers 验证可逆迁移、邮箱规范化唯一约束与最小权限角色默认值。
+> Built a strict TypeScript, NestJS, and React workspace with automated quality gates and a hardened non-root container; established migration-driven PostgreSQL/pgvector persistence and implemented least-privilege authentication with Argon2id, purpose-bound JWTs, atomic Redis refresh rotation, distributed login abuse controls, correlated security events, and Testcontainers attack-chain coverage.
 
 This is an interim engineering bullet, not yet the final AI project bullet.
 

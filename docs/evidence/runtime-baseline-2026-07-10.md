@@ -27,7 +27,6 @@ The first E2E attempt returned 404 because test bootstrap bypassed the global AP
 
 - Multi-stage build completed with `node:24.14.0-bookworm-slim`.
 - Final image process UID: 1000 (`node`).
-- Legacy Python application directory absent from the image.
 - Health endpoint succeeded with a read-only root filesystem and `/tmp` tmpfs.
 - Docker build context after `.dockerignore`: approximately 525 KB.
 
