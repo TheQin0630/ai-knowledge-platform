@@ -13,6 +13,11 @@ Branch: `refactor/nestjs-ai-platform`
 - Logout is idempotent, revokes the session identified by a valid refresh token, and clears the scoped cookie even if revocation fails.
 - Access tokens require an active Redis session with a matching user binding.
 - Redis session command failures return a sanitized `503 AUTH_SESSION_UNAVAILABLE`, not an invalid-token 401 or a raw driver error.
+- Login attempts are limited atomically in Redis by source address and by source-address/normalized-email pair without storing either value in Redis keys.
+- Login-limit exhaustion returns `429 AUTH_RATE_LIMITED` with `Retry-After`; Redis failure returns a sanitized `503 AUTH_RATE_LIMIT_UNAVAILABLE` and does not bypass limiting.
+- The API ignores spoofed `X-Forwarded-For` values under its default untrusted-proxy configuration.
+- Every HTTP response receives a server-generated UUID request ID; client-supplied request IDs are replaced.
+- Authentication security events are single-line JSON correlated by request ID and limited to stable event, reason, and operation fields.
 - `/health/ready` reports PostgreSQL and Redis independently; `/health/live` performs no dependency query.
 
 ## Abuse Cases Covered
@@ -25,8 +30,13 @@ Branch: `refactor/nestjs-ai-platform`
 - Redis failures during session create, lookup, rotation, cleanup, and revocation;
 - production `Secure` Cookie issuance and clearing with matching scope attributes;
 - dependency error response redaction.
+- concurrent login attempts at the pair and source-address limits;
+- fixed-window expiration and recovery;
+- disconnected Redis fail-closed behavior;
+- spoofed proxy and request ID headers;
+- security-event field allowlisting and actual JSON output.
 
-## Focused Verification
+## Previous Focused Verification
 
 - Health unit tests: 4 passed.
 - Health E2E tests: 4 passed.
@@ -35,7 +45,16 @@ Branch: `refactor/nestjs-ai-platform`
 - Real Redis session integration tests: 3 passed.
 - Lint, TypeScript typecheck, and Nest build passed after the implementation changes.
 
-## Final Repository Verification
+## Phase 1 Closure Verification
+
+- Login limiter unit tests: 5 passed.
+- Real Redis login-limit integration tests: 4 passed.
+- Security-event logger unit tests: 3 passed.
+- Authentication E2E contract tests: 16 passed.
+- Real PostgreSQL and Redis authentication attack-chain tests: 3 passed.
+- Request-correlation health E2E tests: 5 passed.
+
+## Previous Repository Verification
 
 - `pnpm test`: 9 suites, 54 tests passed.
 - `pnpm test:e2e`: 2 suites, 16 tests passed.

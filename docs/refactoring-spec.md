@@ -138,18 +138,15 @@ Verify: stop each dependency and assert liveness/readiness behavior separately.
 
 Delivered:
 
-- reversible migrations and the initial user identity table.
-
-Remaining:
-
-- add session persistence;
-- public registration always creates the least-privileged role;
-- hash passwords with a current memory-hard algorithm;
-- bind refresh/session state to the user and token purpose;
-- add login abuse controls and security events.
+- reversible migrations and the initial user identity table;
+- Redis-backed revocable session persistence;
+- least-privileged public registration;
+- Argon2id password hashing with bounded inputs;
+- refresh and access tokens bound to user, session, and purpose;
+- distributed login abuse controls and correlated, redacted security events.
 
 Risk: auth rewrites can preserve the same privilege escalation under a new framework.  
-Verify: tests for self-assigned roles, forged tokens, session mismatch, expiry, logout, and duplicate identity.
+Verify: tests for self-assigned roles, forged tokens, session mismatch, expiry, logout, duplicate identity, atomic login-limit concurrency, fixed-window recovery, spoofed proxy headers, fail-closed dependency errors, and security-event redaction.
 
 ### Phase 2: Knowledge Ingestion
 

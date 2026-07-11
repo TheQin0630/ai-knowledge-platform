@@ -10,7 +10,8 @@ The active implementation is a strict TypeScript workspace built with NestJS. Th
 - Dependency-free liveness and PostgreSQL/Redis readiness under `/api/v1/health`
 - PostgreSQL 17 with pgvector
 - Migration-driven TypeORM persistence with a normalized user identity schema
-- Least-privilege authentication with Argon2id, purpose-bound JWTs, and revocable Redis sessions
+- Least-privilege authentication with Argon2id, purpose-bound JWTs, revocable Redis sessions, and distributed login abuse controls
+- Correlated, structured authentication security events with allowlisted fields
 - Redis for authentication sessions, caching, and background job coordination
 - Non-root, read-only API container
 - Unit, end-to-end, Testcontainers integration, lint, typecheck, and build gates
