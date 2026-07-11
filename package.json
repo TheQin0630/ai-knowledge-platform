@@ -20,6 +20,7 @@
     "migration:show": "pnpm --filter @ai-knowledge/api migration:show",
     "test": "pnpm --filter @ai-knowledge/api test",
     "test:web": "pnpm --filter @ai-knowledge/web test",
+    "test:web:e2e": "pnpm --filter @ai-knowledge/web test:e2e",
     "test:cov": "pnpm --filter @ai-knowledge/api test:cov",
     "test:e2e": "pnpm --filter @ai-knowledge/api test:e2e",
     "test:integration": "pnpm --filter @ai-knowledge/api test:integration",
