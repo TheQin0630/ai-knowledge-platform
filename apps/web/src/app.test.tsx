@@ -26,7 +26,8 @@ describe('authentication workspace', () => {
           expiresIn: 900,
           user,
         }),
-      );
+      )
+      .mockResolvedValueOnce(jsonResponse(200, []));
     vi.stubGlobal('fetch', fetchMock);
 
     render(<App />);
@@ -70,6 +71,7 @@ describe('authentication workspace', () => {
         }),
       )
       .mockResolvedValueOnce(jsonResponse(200, user))
+      .mockResolvedValueOnce(jsonResponse(200, []))
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -87,7 +89,7 @@ describe('authentication workspace', () => {
 
     expect(await screen.findByLabelText('工作邮箱')).toBeInTheDocument();
     expect(fetchMock).toHaveBeenNthCalledWith(
-      3,
+      4,
       '/api/v1/auth/logout',
       expect.objectContaining({ method: 'POST', credentials: 'include' }),
     );
@@ -121,12 +123,87 @@ describe('authentication workspace', () => {
       '尝试次数过多，请在 60 秒后重试。',
     );
   });
+
+  it('creates the first workspace with the in-memory bearer token', async () => {
+    const workspace = {
+      id: '859ce7a0-4f96-4786-a9f6-3ec74c1d1477',
+      name: '平台工程',
+      role: 'owner',
+      knowledgeBaseCount: 0,
+      createdAt: '2026-07-13T00:00:00.000Z',
+    };
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          accessToken: 'workspace-access-token',
+          tokenType: 'Bearer',
+          expiresIn: 900,
+        }),
+      )
+      .mockResolvedValueOnce(jsonResponse(200, user))
+      .mockResolvedValueOnce(jsonResponse(200, []))
+      .mockResolvedValueOnce(jsonResponse(201, workspace))
+      .mockResolvedValueOnce(jsonResponse(200, []));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+
+    await userEvent.click(
+      await screen.findByRole('button', { name: '创建 Workspace' }),
+    );
+    await userEvent.type(screen.getByLabelText('Workspace 名称'), workspace.name);
+    await userEvent.click(screen.getByRole('button', { name: '创建' }));
+
+    expect(
+      await screen.findByRole('heading', { name: workspace.name }),
+    ).toBeInTheDocument();
+    expect(fetchMock.mock.calls[3]?.[0]).toBe('/api/v1/workspaces');
+    const requestInit = fetchMock.mock.calls[3]?.[1];
+    expect(requestInit).toMatchObject({
+      method: 'POST',
+      body: JSON.stringify({ name: workspace.name }),
+    });
+    expect(new Headers(requestInit?.headers).get('Authorization')).toBe(
+      'Bearer workspace-access-token',
+    );
+    expect(localStorage).toHaveLength(0);
+  });
+
+  it('returns to login with a session-expired state on workspace 401', async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          accessToken: 'expired-access-token',
+          tokenType: 'Bearer',
+          expiresIn: 900,
+        }),
+      )
+      .mockResolvedValueOnce(jsonResponse(200, user))
+      .mockResolvedValueOnce(jsonResponse(401, invalidAccessError));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+
+    expect(await screen.findByLabelText('工作邮箱')).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      '会话已过期，请重新登录。',
+    );
+  });
 });
 
 const invalidRefreshError = {
   error: {
     code: 'INVALID_REFRESH_TOKEN',
     message: 'Refresh token is invalid or expired',
+  },
+};
+
+const invalidAccessError = {
+  error: {
+    code: 'INVALID_ACCESS_TOKEN',
+    message: 'Access token is invalid or expired',
   },
 };
 

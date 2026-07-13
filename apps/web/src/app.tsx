@@ -1,17 +1,12 @@
 import {
   ArrowUpRight,
-  BookOpenText,
-  CheckCircle2,
-  CircleUserRound,
-  Database,
   Eye,
   EyeOff,
-  FileText,
-  Gauge,
   Library,
-  LogOut,
   ShieldCheck,
 } from 'lucide-react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import {
@@ -20,6 +15,7 @@ import {
   CurrentUser,
   LoginSession,
 } from './api/auth-client';
+import { WorkspaceWorkbench } from './workbench';
 
 type AuthState =
   | { status: 'restoring' }
@@ -27,6 +23,23 @@ type AuthState =
   | { status: 'authenticated'; accessToken: string; user: CurrentUser };
 
 export function App() {
+  const [queryClient] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: { queries: { retry: false, staleTime: 30_000 } },
+      }),
+  );
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <AuthenticationApp queryClient={queryClient} />
+      </BrowserRouter>
+    </QueryClientProvider>
+  );
+}
+
+function AuthenticationApp({ queryClient }: { queryClient: QueryClient }) {
   const [auth, setAuth] = useState<AuthState>({ status: 'restoring' });
   const restorationStarted = useRef(false);
 
@@ -57,16 +70,51 @@ export function App() {
   }
 
   return (
-    <Workbench
-      user={auth.user}
-      onLogout={async () => {
-        try {
-          await authClient.logout();
-        } finally {
-          setAuth({ status: 'anonymous' });
+    <Routes>
+      <Route
+        path="/"
+        element={
+          <WorkspaceWorkbench
+            accessToken={auth.accessToken}
+            user={auth.user}
+            onSessionExpired={() => {
+              queryClient.clear();
+              setAuth({ status: 'anonymous', message: '会话已过期，请重新登录。' });
+            }}
+            onLogout={async () => {
+              try {
+                await authClient.logout();
+              } finally {
+                queryClient.clear();
+                setAuth({ status: 'anonymous' });
+              }
+            }}
+          />
         }
-      }}
-    />
+      />
+      <Route
+        path="/workspaces/:workspaceId"
+        element={
+          <WorkspaceWorkbench
+            accessToken={auth.accessToken}
+            user={auth.user}
+            onSessionExpired={() => {
+              queryClient.clear();
+              setAuth({ status: 'anonymous', message: '会话已过期，请重新登录。' });
+            }}
+            onLogout={async () => {
+              try {
+                await authClient.logout();
+              } finally {
+                queryClient.clear();
+                setAuth({ status: 'anonymous' });
+              }
+            }}
+          />
+        }
+      />
+      <Route path="*" element={<Navigate replace to="/" />} />
+    </Routes>
   );
 }
 
@@ -220,161 +268,6 @@ function LoginScreen({
   );
 }
 
-function Workbench({
-  user,
-  onLogout,
-}: {
-  user: CurrentUser;
-  onLogout: () => Promise<void>;
-}) {
-  const [loggingOut, setLoggingOut] = useState(false);
-
-  return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="sidebar-brand">
-          <span className="brand-mark" aria-hidden="true">
-            <Library size={20} />
-          </span>
-          <span>KNOWLEDGE OS</span>
-        </div>
-
-        <nav className="primary-nav" aria-label="主导航">
-          <a className="nav-item active" href="#overview" aria-current="page">
-            <Gauge size={18} aria-hidden="true" />
-            工作台
-          </a>
-          <a className="nav-item" href="#knowledge-bases">
-            <BookOpenText size={18} aria-hidden="true" />
-            知识库
-          </a>
-        </nav>
-
-        <div className="sidebar-account">
-          <span className="avatar" aria-hidden="true">
-            {user.email.charAt(0).toUpperCase()}
-          </span>
-          <span className="account-copy">
-            <strong>{user.email}</strong>
-            <small>{roleLabel(user.role)}</small>
-          </span>
-        </div>
-      </aside>
-
-      <div className="workspace-shell">
-        <header className="topbar">
-          <span className="mobile-top-brand" aria-label="Knowledge OS">
-            <Library size={18} aria-hidden="true" />
-          </span>
-          <div className="breadcrumb">
-            <span>组织空间</span>
-            <span>/</span>
-            <strong>工作台</strong>
-          </div>
-          <div className="topbar-actions">
-            <span className="system-badge">
-              <span className="status-dot" />
-              会话已保护
-            </span>
-            <button
-              className="icon-button"
-              aria-label="退出登录"
-              title="退出登录"
-              disabled={loggingOut}
-              onClick={() => {
-                setLoggingOut(true);
-                void onLogout();
-              }}
-            >
-              <LogOut size={18} />
-            </button>
-          </div>
-        </header>
-
-        <main className="workspace" id="overview">
-          <header className="page-header">
-            <div>
-              <p className="eyebrow">OVERVIEW</p>
-              <h1>知识工作台</h1>
-              <p>早上好，{emailName(user.email)}。</p>
-            </div>
-            <div className="identity-chip">
-              <CircleUserRound size={18} aria-hidden="true" />
-              <span>{roleLabel(user.role)}</span>
-            </div>
-          </header>
-
-          <section className="workspace-grid" aria-label="工作区概览">
-            <article className="focus-panel" id="knowledge-bases">
-              <div className="panel-heading">
-                <div>
-                  <p className="section-kicker">START HERE</p>
-                  <h2>建立你的知识空间</h2>
-                </div>
-                <Database size={22} aria-hidden="true" />
-              </div>
-              <div className="empty-visual" aria-hidden="true">
-                <span className="document-sheet sheet-back" />
-                <span className="document-sheet sheet-front">
-                  <span />
-                  <span />
-                  <span />
-                </span>
-              </div>
-              <div className="empty-copy">
-                <strong>暂无知识库</strong>
-                <p>当前组织空间尚无知识库。</p>
-              </div>
-            </article>
-
-            <aside className="status-panel" aria-label="账户状态">
-              <div className="panel-heading compact">
-                <div>
-                  <p className="section-kicker">ACCOUNT</p>
-                  <h2>账户状态</h2>
-                </div>
-                <CheckCircle2 size={20} aria-hidden="true" />
-              </div>
-              <dl className="status-list">
-                <div>
-                  <dt>身份</dt>
-                  <dd>{user.email}</dd>
-                </div>
-                <div>
-                  <dt>角色</dt>
-                  <dd>{roleLabel(user.role)}</dd>
-                </div>
-                <div>
-                  <dt>会话</dt>
-                  <dd className="positive">有效</dd>
-                </div>
-              </dl>
-            </aside>
-
-            <section className="recent-panel" aria-labelledby="recent-title">
-              <div className="panel-heading compact">
-                <div>
-                  <p className="section-kicker">RECENT</p>
-                  <h2 id="recent-title">最近访问</h2>
-                </div>
-              </div>
-              <div className="recent-empty">
-                <span className="recent-icon" aria-hidden="true">
-                  <FileText size={20} />
-                </span>
-                <div>
-                  <strong>暂无访问记录</strong>
-                  <p>当前没有可显示的历史记录。</p>
-                </div>
-              </div>
-            </section>
-          </section>
-        </main>
-      </div>
-    </div>
-  );
-}
-
 function SessionSkeleton() {
   return (
     <main className="session-skeleton" aria-busy="true" aria-label="正在恢复会话">
@@ -408,12 +301,4 @@ function errorMessage(error: unknown): string {
     default:
       return '登录失败，请稍后重试。';
   }
-}
-
-function roleLabel(role: CurrentUser['role']): string {
-  return role === 'admin' ? '管理员' : '成员';
-}
-
-function emailName(email: string): string {
-  return email.split('@')[0] || '成员';
 }

@@ -37,28 +37,31 @@ export class ApiError extends Error {
 
 export const authClient = {
   login(email: string, password: string): Promise<LoginSession> {
-    return request<LoginSession>('/api/v1/auth/login', {
+    return apiRequest<LoginSession>('/api/v1/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
   },
 
   refresh(): Promise<AccessSession> {
-    return request<AccessSession>('/api/v1/auth/refresh', { method: 'POST' });
+    return apiRequest<AccessSession>('/api/v1/auth/refresh', { method: 'POST' });
   },
 
   me(accessToken: string): Promise<CurrentUser> {
-    return request<CurrentUser>('/api/v1/auth/me', {
+    return apiRequest<CurrentUser>('/api/v1/auth/me', {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
   },
 
   logout(): Promise<void> {
-    return request<void>('/api/v1/auth/logout', { method: 'POST' });
+    return apiRequest<void>('/api/v1/auth/logout', { method: 'POST' });
   },
 };
 
-async function request<T>(path: string, init: RequestInit): Promise<T> {
+export async function apiRequest<T>(
+  path: string,
+  init: RequestInit,
+): Promise<T> {
   let response: Response;
   try {
     response = await fetch(path, {
