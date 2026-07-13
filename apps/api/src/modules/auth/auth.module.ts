@@ -36,5 +36,11 @@ import { AuthTokenService } from './token/auth-token.service';
     RedisSessionStore,
     AccessTokenGuard,
   ],
+  exports: [
+    AccessTokenGuard,
+    AuthTokenService,
+    RedisSessionStore,
+    AuthSecurityEventLogger,
+  ],
 })
 export class AuthModule {}

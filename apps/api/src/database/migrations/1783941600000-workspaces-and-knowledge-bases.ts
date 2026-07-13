@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class WorkspacesAndKnowledgeBases1783941600000
-  implements MigrationInterface
-{
+export class WorkspacesAndKnowledgeBases1783941600000 implements MigrationInterface {
   name = 'WorkspacesAndKnowledgeBases1783941600000';
 
   async up(queryRunner: QueryRunner): Promise<void> {

@@ -103,7 +103,10 @@ describe('initial persistence migration', () => {
     const members = dataSource.getRepository(WorkspaceMember);
     const knowledgeBases = dataSource.getRepository(KnowledgeBase);
     const workspace = await workspaces.save(
-      workspaces.create({ name: 'Platform Engineering', createdBy: createdUser.id }),
+      workspaces.create({
+        name: 'Platform Engineering',
+        createdBy: createdUser.id,
+      }),
     );
     await members.save(
       members.create({
