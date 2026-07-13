@@ -12,6 +12,11 @@ export interface EnvironmentVariables {
   REDIS_URL: string;
   JWT_ACCESS_SECRET: string;
   JWT_REFRESH_SECRET: string;
+  S3_ENDPOINT: string;
+  S3_REGION: string;
+  S3_BUCKET: string;
+  S3_ACCESS_KEY: string;
+  S3_SECRET_KEY: string;
 }
 
 const environmentValidationSchema: ObjectSchema<EnvironmentVariables> =
@@ -34,6 +39,15 @@ const environmentValidationSchema: ObjectSchema<EnvironmentVariables> =
       .min(32)
       .invalid(...documentedJwtPlaceholders)
       .required(),
+    S3_ENDPOINT: Joi.string()
+      .uri({ scheme: ['http', 'https'] })
+      .required(),
+    S3_REGION: Joi.string().trim().min(1).default('us-east-1'),
+    S3_BUCKET: Joi.string()
+      .pattern(/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/)
+      .required(),
+    S3_ACCESS_KEY: Joi.string().min(3).required(),
+    S3_SECRET_KEY: Joi.string().min(8).required(),
   }).unknown(true);
 
 export function validateEnvironment(

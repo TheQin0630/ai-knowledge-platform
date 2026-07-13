@@ -1,9 +1,12 @@
 import { User } from '../modules/identity/entities/user.entity';
+import { Document } from '../modules/documents/entities/document.entity';
+import { DocumentVersion } from '../modules/documents/entities/document-version.entity';
 import { KnowledgeBase } from '../modules/knowledge-bases/entities/knowledge-base.entity';
 import { Workspace } from '../modules/workspaces/entities/workspace.entity';
 import { WorkspaceMember } from '../modules/workspaces/entities/workspace-member.entity';
 import { InitialPersistence1783692000000 } from './migrations/1783692000000-initial-persistence';
 import { WorkspacesAndKnowledgeBases1783941600000 } from './migrations/1783941600000-workspaces-and-knowledge-bases';
+import { DocumentIngestion1784029200000 } from './migrations/1784029200000-document-ingestion';
 import {
   createNestTypeOrmOptions,
   createPersistenceDataSource,
@@ -24,10 +27,18 @@ describe('TypeORM options', () => {
       retryDelay: 1_000,
       synchronize: false,
       migrationsRun: false,
-      entities: [User, Workspace, WorkspaceMember, KnowledgeBase],
+      entities: [
+        User,
+        Workspace,
+        WorkspaceMember,
+        KnowledgeBase,
+        Document,
+        DocumentVersion,
+      ],
       migrations: [
         InitialPersistence1783692000000,
         WorkspacesAndKnowledgeBases1783941600000,
+        DocumentIngestion1784029200000,
       ],
     });
   });
@@ -40,10 +51,18 @@ describe('TypeORM options', () => {
       url: databaseUrl,
       synchronize: false,
       migrationsRun: false,
-      entities: [User, Workspace, WorkspaceMember, KnowledgeBase],
+      entities: [
+        User,
+        Workspace,
+        WorkspaceMember,
+        KnowledgeBase,
+        Document,
+        DocumentVersion,
+      ],
       migrations: [
         InitialPersistence1783692000000,
         WorkspacesAndKnowledgeBases1783941600000,
+        DocumentIngestion1784029200000,
       ],
     });
   });

@@ -7,6 +7,11 @@ const validEnvironment = {
   REDIS_URL: 'redis://:password@localhost:6379/0',
   JWT_ACCESS_SECRET: '0123456789abcdef0123456789abcdef',
   JWT_REFRESH_SECRET: 'fedcba9876543210fedcba9876543210',
+  S3_ENDPOINT: 'http://127.0.0.1:9000',
+  S3_REGION: 'us-east-1',
+  S3_BUCKET: 'ai-knowledge-documents',
+  S3_ACCESS_KEY: 'local-minio',
+  S3_SECRET_KEY: 'local-minio-secret',
 };
 
 describe('environmentValidationSchema', () => {
@@ -16,10 +21,12 @@ describe('environmentValidationSchema', () => {
     expect(result.PORT).toBe(3000);
   });
 
-  it('rejects missing service URLs and JWT secrets', () => {
+  it('rejects missing service URLs, storage settings and JWT secrets', () => {
     expect(() =>
       validateEnvironment({ NODE_ENV: 'test', PORT: '3000' }),
-    ).toThrow(/DATABASE_URL.*REDIS_URL.*JWT_ACCESS_SECRET.*JWT_REFRESH_SECRET/);
+    ).toThrow(
+      /DATABASE_URL.*REDIS_URL.*JWT_ACCESS_SECRET.*JWT_REFRESH_SECRET.*S3_ENDPOINT.*S3_BUCKET.*S3_ACCESS_KEY.*S3_SECRET_KEY/,
+    );
   });
 
   it('rejects short JWT secrets', () => {
