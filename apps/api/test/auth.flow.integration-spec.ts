@@ -58,6 +58,11 @@ describe('authentication attack chain', () => {
     process.env.REDIS_URL = redisContainer.getConnectionUrl();
     process.env.JWT_ACCESS_SECRET = accessSecret;
     process.env.JWT_REFRESH_SECRET = refreshSecret;
+    process.env.S3_ENDPOINT = 'http://127.0.0.1:9000';
+    process.env.S3_REGION = 'us-east-1';
+    process.env.S3_BUCKET = 'ai-knowledge-documents';
+    process.env.S3_ACCESS_KEY = 'integration-test';
+    process.env.S3_SECRET_KEY = 'integration-test-secret';
 
     const migrationDataSource = createPersistenceDataSource(
       postgresContainer.getConnectionUri(),

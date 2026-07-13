@@ -52,7 +52,7 @@ describe('initial persistence migration', () => {
 
   it('upgrades, enforces identity invariants, reverts, and upgrades again', async () => {
     const appliedMigrations = await dataSource.runMigrations();
-    expect(appliedMigrations).toHaveLength(2);
+    expect(appliedMigrations).toHaveLength(3);
 
     const extension = await dataSource.query<Array<{ extversion: string }>>(
       `SELECT extversion FROM pg_extension WHERE extname = 'vector'`,
@@ -167,6 +167,21 @@ describe('initial persistence migration', () => {
 
     await dataSource.undoLastMigration();
 
+    const documentRevertedState = await dataSource.query<
+      Array<{
+        documents_table: string | null;
+        document_version_status_count: number;
+      }>
+    >(
+      `SELECT
+         to_regclass('public.documents')::text AS documents_table,
+         (SELECT COUNT(*)::int FROM pg_type WHERE typname = 'document_version_status') AS document_version_status_count`,
+    );
+    expect(documentRevertedState).toEqual([
+      { documents_table: null, document_version_status_count: 0 },
+    ]);
+    await dataSource.undoLastMigration();
+
     const workspaceRevertedState = await dataSource.query<
       Array<{ workspaces_table: string | null; workspace_role_count: number }>
     >(
@@ -194,7 +209,7 @@ describe('initial persistence migration', () => {
     expect(extensionAfterRevert).toEqual([{ extversion: '0.8.5' }]);
 
     const reappliedMigrations = await dataSource.runMigrations();
-    expect(reappliedMigrations).toHaveLength(2);
+    expect(reappliedMigrations).toHaveLength(3);
 
     const nestModule = await Test.createTestingModule({
       imports: [

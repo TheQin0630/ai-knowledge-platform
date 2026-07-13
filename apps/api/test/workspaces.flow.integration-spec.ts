@@ -6,6 +6,7 @@ import {
   StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
 import { RedisContainer, StartedRedisContainer } from '@testcontainers/redis';
+import { MinioContainer, StartedMinioContainer } from '@testcontainers/minio';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { DataSource } from 'typeorm';
@@ -26,11 +27,12 @@ jest.setTimeout(180_000);
 describe('workspace and knowledge-base authorization', () => {
   let postgres: StartedPostgreSqlContainer;
   let redis: StartedRedisContainer;
+  let minio: StartedMinioContainer;
   let app: INestApplication<App>;
   let dataSource: DataSource;
 
   beforeAll(async () => {
-    [postgres, redis] = await Promise.all([
+    [postgres, redis, minio] = await Promise.all([
       new PostgreSqlContainer('pgvector/pgvector:0.8.5-pg17-bookworm')
         .withDatabase('workspace_test')
         .withUsername('workspace_test')
@@ -39,12 +41,21 @@ describe('workspace and knowledge-base authorization', () => {
       new RedisContainer('redis:8.4.4-alpine')
         .withPassword('integration-test-password')
         .start(),
+      new MinioContainer('minio/minio:RELEASE.2025-09-07T16-13-09Z')
+        .withUsername('integration-test')
+        .withPassword('integration-test-secret')
+        .start(),
     ]);
     process.env.NODE_ENV = 'test';
     process.env.DATABASE_URL = postgres.getConnectionUri();
     process.env.REDIS_URL = redis.getConnectionUrl();
     process.env.JWT_ACCESS_SECRET = '0123456789abcdef0123456789abcdef';
     process.env.JWT_REFRESH_SECRET = 'fedcba9876543210fedcba9876543210';
+    process.env.S3_ENDPOINT = minio.getConnectionUrl();
+    process.env.S3_REGION = 'us-east-1';
+    process.env.S3_BUCKET = 'ai-knowledge-documents';
+    process.env.S3_ACCESS_KEY = minio.getUsername();
+    process.env.S3_SECRET_KEY = minio.getPassword();
 
     const migrations = createPersistenceDataSource(postgres.getConnectionUri());
     await migrations.initialize();
@@ -76,6 +87,7 @@ describe('workspace and knowledge-base authorization', () => {
     currentServer = undefined;
     if (postgres) await postgres.stop();
     if (redis) await redis.stop();
+    if (minio) await minio.stop();
   });
 
   it('enforces owner, admin, member, and outsider access without leaking tenants', async () => {
@@ -178,6 +190,88 @@ describe('workspace and knowledge-base authorization', () => {
       .expect([]);
   });
 
+  it('uploads, parses, versions and authorizes documents through MinIO and BullMQ', async () => {
+    const owner = await createIdentity('document-owner@example.com');
+    const member = await createIdentity('document-member@example.com');
+    const workspaceResponse = await request(app.getHttpServer())
+      .post('/api/v1/workspaces')
+      .auth(owner.token, { type: 'bearer' })
+      .send({ name: 'Document ingestion' })
+      .expect(201);
+    const workspaceId = readId(workspaceResponse.body);
+    await dataSource.getRepository(WorkspaceMember).save({
+      workspaceId,
+      userId: member.userId,
+      role: WorkspaceRole.MEMBER,
+    });
+    const knowledgeBaseResponse = await createKnowledgeBase(
+      workspaceId,
+      owner.token,
+      'Documents',
+      201,
+    );
+    const knowledgeBaseId = readId(knowledgeBaseResponse.body);
+    const documentsUrl = `/api/v1/workspaces/${workspaceId}/knowledge-bases/${knowledgeBaseId}/documents`;
+
+    await request(app.getHttpServer())
+      .post(documentsUrl)
+      .auth(member.token, { type: 'bearer' })
+      .attach('file', Buffer.from('member upload'), 'member.txt')
+      .expect(403);
+    await request(app.getHttpServer())
+      .post(documentsUrl)
+      .auth(owner.token, { type: 'bearer' })
+      .attach('file', Buffer.from([0, 1, 2]), 'invalid.txt')
+      .expect(400)
+      .expect(({ body }) =>
+        expect(body).toMatchObject({
+          error: { code: 'DOCUMENT_CONTENT_INVALID' },
+        }),
+      );
+
+    const firstUpload = await request(app.getHttpServer())
+      .post(documentsUrl)
+      .auth(owner.token, { type: 'bearer' })
+      .attach('file', Buffer.from('first document version'), 'runbook.txt')
+      .expect(201);
+    const documentId = readId(firstUpload.body);
+    expect(firstUpload.body).toMatchObject({
+      fileName: 'runbook.txt',
+      latestVersion: { versionNumber: 1, status: 'queued' },
+    });
+
+    const readyDetail = await waitForReady(
+      `${documentsUrl}/${documentId}`,
+      member.token,
+    );
+    expect(readyDetail).toMatchObject({
+      latestVersion: { versionNumber: 1, status: 'ready', attemptCount: 1 },
+    });
+
+    await request(app.getHttpServer())
+      .post(documentsUrl)
+      .auth(owner.token, { type: 'bearer' })
+      .attach('file', Buffer.from('second document version'), 'runbook.txt')
+      .expect(201)
+      .expect(({ body }) =>
+        expect(body).toMatchObject({
+          id: documentId,
+          latestVersion: { versionNumber: 2 },
+        }),
+      );
+
+    const versionedDetail = await waitForReady(
+      `${documentsUrl}/${documentId}`,
+      owner.token,
+    );
+    expect(versionedDetail).toMatchObject({
+      latestVersion: { versionNumber: 2, status: 'ready' },
+    });
+    expect((versionedDetail as { versions: unknown[] }).versions).toHaveLength(
+      2,
+    );
+  });
+
   async function createIdentity(
     email: string,
   ): Promise<{ userId: string; token: string }> {
@@ -194,6 +288,23 @@ describe('workspace and knowledge-base authorization', () => {
       userId: readId(registered.body),
       token: readString(loggedIn.body, 'accessToken'),
     };
+  }
+
+  async function waitForReady(url: string, token: string): Promise<unknown> {
+    const deadline = Date.now() + 20_000;
+    while (Date.now() < deadline) {
+      const response = await request(app.getHttpServer())
+        .get(url)
+        .auth(token, { type: 'bearer' })
+        .expect(200);
+      const latest = (response.body as { latestVersion?: { status?: string } })
+        .latestVersion;
+      if (latest?.status === 'ready') return response.body;
+      if (latest?.status === 'failed')
+        throw new Error('Document parsing failed');
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+    throw new Error('Timed out waiting for document parsing');
   }
 });
 
