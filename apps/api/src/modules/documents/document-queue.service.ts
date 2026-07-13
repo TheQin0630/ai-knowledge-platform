@@ -1,4 +1,9 @@
-import { Inject, Injectable, OnApplicationShutdown } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  OnApplicationShutdown,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Job, Queue, Worker } from 'bullmq';
 import { Repository } from 'typeorm';
@@ -21,6 +26,7 @@ interface IngestionJob {
 
 @Injectable()
 export class DocumentQueueService implements OnApplicationShutdown {
+  private readonly logger = new Logger(DocumentQueueService.name);
   private readonly queue: Queue<IngestionJob>;
   private readonly worker: Worker<IngestionJob>;
 
@@ -82,6 +88,10 @@ export class DocumentQueueService implements OnApplicationShutdown {
         status: DocumentVersionStatus.READY,
         extractedText,
       });
+      this.logger.log({
+        event: 'document_parse_succeeded',
+        versionId: version.id,
+      });
     } catch (error) {
       const finalAttempt = job.attemptsMade + 1 >= (job.opts.attempts ?? 1);
       await this.versions.update(version.id, {
@@ -90,6 +100,12 @@ export class DocumentQueueService implements OnApplicationShutdown {
           : DocumentVersionStatus.QUEUED,
         errorCode: 'DOCUMENT_PARSE_FAILED',
         errorMessage: safeErrorMessage(error),
+      });
+      this.logger.warn({
+        event: 'document_parse_failed',
+        versionId: version.id,
+        finalAttempt,
+        attempt: job.attemptsMade + 1,
       });
       throw error;
     }
