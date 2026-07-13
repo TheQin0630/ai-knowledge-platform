@@ -8,6 +8,7 @@ import { AppModule } from './../src/app.module';
 import { configureApp } from './../src/app.setup';
 import { DatabaseModule } from './../src/database/database.module';
 import { AuthModule } from './../src/modules/auth/auth.module';
+import { WorkspacesModule } from './../src/modules/workspaces/workspaces.module';
 import { REDIS_CLIENT } from './../src/redis/redis.constants';
 import { RedisModule } from './../src/redis/redis.module';
 
@@ -23,6 +24,9 @@ class TestDatabaseModule {}
 
 @Module({})
 class TestAuthModule {}
+
+@Module({})
+class TestWorkspacesModule {}
 
 @Global()
 @Module({
@@ -45,6 +49,8 @@ describe('Health endpoints (e2e)', () => {
       .useModule(TestDatabaseModule)
       .overrideModule(AuthModule)
       .useModule(TestAuthModule)
+      .overrideModule(WorkspacesModule)
+      .useModule(TestWorkspacesModule)
       .overrideModule(RedisModule)
       .useModule(TestRedisModule)
       .compile();

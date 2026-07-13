@@ -12,6 +12,8 @@ The implementation is a strict TypeScript workspace built with NestJS and React.
 - PostgreSQL 17 with pgvector
 - Migration-driven TypeORM persistence with a normalized user identity schema
 - Least-privilege authentication with Argon2id, purpose-bound JWTs, revocable Redis sessions, and distributed login abuse controls
+- Workspace-scoped owner/admin/member authorization with tenant-hiding API semantics
+- Workspace switching plus knowledge-base list and create flows on desktop and mobile
 - Correlated, structured authentication security events with allowlisted fields
 - Redis for authentication sessions, caching, and background job coordination
 - Non-root, read-only API container
@@ -19,7 +21,7 @@ The implementation is a strict TypeScript workspace built with NestJS and React.
 
 Document ingestion, retrieval, RAG, and evaluation modules are being delivered incrementally with tests.
 
-The authentication contract and verified failure semantics are documented in [`docs/auth-api-contract.md`](docs/auth-api-contract.md).
+The authentication contract and verified failure semantics are documented in [`docs/auth-api-contract.md`](docs/auth-api-contract.md). Workspace roles and endpoints are documented in [`docs/workspace-api-contract.md`](docs/workspace-api-contract.md).
 
 ## Requirements
 
