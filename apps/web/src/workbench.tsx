@@ -20,6 +20,7 @@ import type {
   WorkspaceRole,
   WorkspaceSummary,
 } from './api/workspace-client';
+import { DocumentPanel } from './document-panel';
 
 interface WorkspaceWorkbenchProps {
   accessToken: string;
@@ -40,6 +41,7 @@ export function WorkspaceWorkbench({
   const [loggingOut, setLoggingOut] = useState(false);
   const [workspaceFormOpen, setWorkspaceFormOpen] = useState(false);
   const [knowledgeBaseFormOpen, setKnowledgeBaseFormOpen] = useState(false);
+  const [selectedKnowledgeBaseId, setSelectedKnowledgeBaseId] = useState<string>();
 
   const workspacesQuery = useQuery({
     queryKey: ['workspaces'],
@@ -56,6 +58,13 @@ export function WorkspaceWorkbench({
         ? workspaceClient.listKnowledgeBases(accessToken, selectedWorkspace.id)
         : Promise.resolve([]),
   });
+  const selectedKnowledgeBase = knowledgeBasesQuery.data?.find(
+    (item) => item.id === selectedKnowledgeBaseId,
+  );
+
+  useEffect(() => {
+    setSelectedKnowledgeBaseId(undefined);
+  }, [selectedWorkspace?.id]);
 
   useEffect(() => {
     if (isSessionExpired(workspacesQuery.error) || isSessionExpired(knowledgeBasesQuery.error)) {
@@ -148,10 +157,20 @@ export function WorkspaceWorkbench({
               error={knowledgeBasesQuery.error}
               onRetry={() => void knowledgeBasesQuery.refetch()}
               onCreate={() => setKnowledgeBaseFormOpen(true)}
+              selectedId={selectedKnowledgeBaseId}
+              onSelect={setSelectedKnowledgeBaseId}
             />
           ) : (
             <LoadingPanel label="正在切换 Workspace" />
           )}
+          {selectedWorkspace && selectedKnowledgeBase ? (
+            <DocumentPanel
+              accessToken={accessToken}
+              workspace={selectedWorkspace}
+              knowledgeBase={selectedKnowledgeBase}
+              onSessionExpired={onSessionExpired}
+            />
+          ) : null}
         </main>
       </div>
 
@@ -281,6 +300,8 @@ function KnowledgeBasePanel({
   error,
   onRetry,
   onCreate,
+  selectedId,
+  onSelect,
 }: {
   workspace: WorkspaceSummary;
   items: KnowledgeBase[];
@@ -288,6 +309,8 @@ function KnowledgeBasePanel({
   error: unknown;
   onRetry: () => void;
   onCreate: () => void;
+  selectedId?: string;
+  onSelect: (id: string) => void;
 }) {
   const canCreate = workspace.role === 'owner' || workspace.role === 'admin';
   return (
@@ -316,10 +339,12 @@ function KnowledgeBasePanel({
       {items.length > 0 ? (
         <ul className="knowledge-list">
           {items.map((item) => (
-            <li key={item.id}>
-              <span className="knowledge-icon" aria-hidden="true"><BookOpenText size={19} /></span>
-              <div><strong>{item.name}</strong><p>{item.description ?? '尚未添加描述'}</p></div>
-              <time dateTime={item.updatedAt}>{formatDate(item.updatedAt)}</time>
+            <li key={item.id} className={selectedId === item.id ? 'selected' : ''}>
+              <button type="button" onClick={() => onSelect(item.id)} aria-pressed={selectedId === item.id}>
+                <span className="knowledge-icon" aria-hidden="true"><BookOpenText size={19} /></span>
+                <span><strong>{item.name}</strong><small>{item.description ?? '尚未添加描述'}</small></span>
+                <time dateTime={item.updatedAt}>{formatDate(item.updatedAt)}</time>
+              </button>
             </li>
           ))}
         </ul>
