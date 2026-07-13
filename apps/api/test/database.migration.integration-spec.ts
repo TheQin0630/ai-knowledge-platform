@@ -13,6 +13,12 @@ import { DatabaseModule } from '../src/database/database.module';
 import { createPersistenceDataSource } from '../src/database/typeorm.options';
 import { AuthModule } from '../src/modules/auth/auth.module';
 import { User, UserRole } from '../src/modules/identity/entities/user.entity';
+import { KnowledgeBase } from '../src/modules/knowledge-bases/entities/knowledge-base.entity';
+import { Workspace } from '../src/modules/workspaces/entities/workspace.entity';
+import {
+  WorkspaceMember,
+  WorkspaceRole,
+} from '../src/modules/workspaces/entities/workspace-member.entity';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 
 jest.setTimeout(120_000);
@@ -46,7 +52,7 @@ describe('initial persistence migration', () => {
 
   it('upgrades, enforces identity invariants, reverts, and upgrades again', async () => {
     const appliedMigrations = await dataSource.runMigrations();
-    expect(appliedMigrations).toHaveLength(1);
+    expect(appliedMigrations).toHaveLength(2);
 
     const extension = await dataSource.query<Array<{ extversion: string }>>(
       `SELECT extversion FROM pg_extension WHERE extname = 'vector'`,
@@ -93,6 +99,48 @@ describe('initial persistence migration', () => {
     const reloadedUser = await users.findOneByOrFail({ id: createdUser.id });
     expect(reloadedUser.passwordHash).toBeUndefined();
 
+    const workspaces = dataSource.getRepository(Workspace);
+    const members = dataSource.getRepository(WorkspaceMember);
+    const knowledgeBases = dataSource.getRepository(KnowledgeBase);
+    const workspace = await workspaces.save(
+      workspaces.create({ name: 'Platform Engineering', createdBy: createdUser.id }),
+    );
+    await members.save(
+      members.create({
+        workspaceId: workspace.id,
+        userId: createdUser.id,
+        role: WorkspaceRole.OWNER,
+      }),
+    );
+    const knowledgeBase = await knowledgeBases.save(
+      knowledgeBases.create({
+        workspaceId: workspace.id,
+        name: 'Architecture',
+        description: 'Validated technical decisions',
+        createdBy: createdUser.id,
+      }),
+    );
+    expect(knowledgeBase.workspaceId).toBe(workspace.id);
+
+    await expect(
+      dataSource.query(
+        `INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1, $2, $3)`,
+        [workspace.id, createdUser.id, 'viewer'],
+      ),
+    ).rejects.toMatchObject({ code: '22P02' });
+    await expect(
+      dataSource.query(
+        `INSERT INTO knowledge_bases (workspace_id, name, created_by) VALUES ($1, $2, $3)`,
+        [workspace.id, 'architecture', createdUser.id],
+      ),
+    ).rejects.toMatchObject({ code: '23505' });
+    await expect(
+      dataSource.query(
+        `INSERT INTO workspaces (name, created_by) VALUES ($1, $2)`,
+        [' Invalid ', createdUser.id],
+      ),
+    ).rejects.toMatchObject({ code: '23514' });
+
     await expect(
       dataSource.query(
         `INSERT INTO users (email, password_hash) VALUES ($1, $2)`,
@@ -116,6 +164,18 @@ describe('initial persistence migration', () => {
 
     await dataSource.undoLastMigration();
 
+    const workspaceRevertedState = await dataSource.query<
+      Array<{ workspaces_table: string | null; workspace_role_count: number }>
+    >(
+      `SELECT
+         to_regclass('public.workspaces')::text AS workspaces_table,
+         (SELECT COUNT(*)::int FROM pg_type WHERE typname = 'workspace_role') AS workspace_role_count`,
+    );
+    expect(workspaceRevertedState).toEqual([
+      { workspaces_table: null, workspace_role_count: 0 },
+    ]);
+    await dataSource.undoLastMigration();
+
     const revertedState = await dataSource.query<
       Array<{ users_table: string | null; role_type_count: number }>
     >(
@@ -131,7 +191,7 @@ describe('initial persistence migration', () => {
     expect(extensionAfterRevert).toEqual([{ extversion: '0.8.5' }]);
 
     const reappliedMigrations = await dataSource.runMigrations();
-    expect(reappliedMigrations).toHaveLength(1);
+    expect(reappliedMigrations).toHaveLength(2);
 
     const nestModule = await Test.createTestingModule({
       imports: [
