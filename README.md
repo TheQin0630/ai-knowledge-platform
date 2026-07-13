@@ -14,14 +14,16 @@ The implementation is a strict TypeScript workspace built with NestJS and React.
 - Least-privilege authentication with Argon2id, purpose-bound JWTs, revocable Redis sessions, and distributed login abuse controls
 - Workspace-scoped owner/admin/member authorization with tenant-hiding API semantics
 - Workspace switching plus knowledge-base list and create flows on desktop and mobile
+- Versioned PDF, DOCX, TXT and Markdown ingestion through MinIO/S3 with BullMQ parsing and retry
+- Upload progress, parsing status, version detail and retry in the responsive knowledge workbench
 - Correlated, structured authentication security events with allowlisted fields
 - Redis for authentication sessions, caching, and background job coordination
 - Non-root, read-only API container
 - Unit, end-to-end, Testcontainers integration, lint, typecheck, and build gates
 
-Document ingestion, retrieval, RAG, and evaluation modules are being delivered incrementally with tests.
+Retrieval, RAG, and evaluation modules are being delivered incrementally with tests.
 
-The authentication contract and verified failure semantics are documented in [`docs/auth-api-contract.md`](docs/auth-api-contract.md). Workspace roles and endpoints are documented in [`docs/workspace-api-contract.md`](docs/workspace-api-contract.md).
+The authentication contract and verified failure semantics are documented in [`docs/auth-api-contract.md`](docs/auth-api-contract.md). Workspace roles and endpoints are documented in [`docs/workspace-api-contract.md`](docs/workspace-api-contract.md). Document upload and retry semantics are documented in [`docs/document-ingestion-api-contract.md`](docs/document-ingestion-api-contract.md).
 
 ## Requirements
 
@@ -45,7 +47,7 @@ pnpm dev
 pnpm dev:web
 ```
 
-The API listens on `http://localhost:3000` by default. The web application listens on `http://127.0.0.1:5173` and proxies same-origin `/api` requests to the API during development. Run `pnpm dev` and `pnpm dev:web` in separate terminals.
+The API listens on `http://localhost:3000` by default. The web application listens on `http://127.0.0.1:5173` and proxies same-origin `/api` requests to the API during development. PostgreSQL, Redis and MinIO must be running before the API starts. Run `pnpm dev` and `pnpm dev:web` in separate terminals.
 
 Before the first browser test run, install the repository-local Chromium runtime:
 
@@ -88,7 +90,7 @@ apps/api/         NestJS HTTP API
 apps/web/         React web application
 docs/             Specifications, decisions, and evidence
 Dockerfile        Multi-stage production image
-docker-compose.yml Local PostgreSQL, Redis, and API stack
+docker-compose.yml Local PostgreSQL, Redis, MinIO, and API stack
 ```
 
 ## Authoritative Sources
