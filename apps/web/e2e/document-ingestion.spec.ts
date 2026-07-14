@@ -24,6 +24,15 @@ test('shows document status, detail and retry without overflow', async ({ page }
     retried = true;
     await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify(version()) });
   });
+  await page.route(
+    `**/api/v1/workspaces/${workspaceId}/knowledge-bases/${knowledgeBaseId}/evaluations`,
+    (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: '[]',
+      }),
+  );
 
   await page.goto(`/workspaces/${workspaceId}`);
   await page.getByRole('button', { name: /运维手册/ }).click();
