@@ -52,12 +52,23 @@ describe('initial persistence migration', () => {
 
   it('upgrades, enforces identity invariants, reverts, and upgrades again', async () => {
     const appliedMigrations = await dataSource.runMigrations();
-    expect(appliedMigrations).toHaveLength(3);
+    expect(appliedMigrations).toHaveLength(4);
 
     const extension = await dataSource.query<Array<{ extversion: string }>>(
       `SELECT extversion FROM pg_extension WHERE extname = 'vector'`,
     );
     expect(extension).toEqual([{ extversion: '0.8.5' }]);
+
+    const retrievalSchema = await dataSource.query<
+      Array<{ chunks_table: string | null; embedding_type: string | null }>
+    >(
+      `SELECT
+         to_regclass('public.document_chunks')::text AS chunks_table,
+         (SELECT format_type(atttypid, atttypmod) FROM pg_attribute WHERE attrelid = 'document_chunks'::regclass AND attname = 'embedding') AS embedding_type`,
+    );
+    expect(retrievalSchema).toEqual([
+      { chunks_table: 'document_chunks', embedding_type: 'vector' },
+    ]);
 
     const implicitUuidExtensions = await dataSource.query<
       Array<{ extname: string }>
@@ -167,6 +178,13 @@ describe('initial persistence migration', () => {
 
     await dataSource.undoLastMigration();
 
+    const retrievalRevertedState = await dataSource.query<
+      Array<{ chunks_table: string | null }>
+    >(`SELECT to_regclass('public.document_chunks')::text AS chunks_table`);
+    expect(retrievalRevertedState).toEqual([{ chunks_table: null }]);
+
+    await dataSource.undoLastMigration();
+
     const documentRevertedState = await dataSource.query<
       Array<{
         documents_table: string | null;
@@ -209,7 +227,7 @@ describe('initial persistence migration', () => {
     expect(extensionAfterRevert).toEqual([{ extversion: '0.8.5' }]);
 
     const reappliedMigrations = await dataSource.runMigrations();
-    expect(reappliedMigrations).toHaveLength(3);
+    expect(reappliedMigrations).toHaveLength(4);
 
     const nestModule = await Test.createTestingModule({
       imports: [
