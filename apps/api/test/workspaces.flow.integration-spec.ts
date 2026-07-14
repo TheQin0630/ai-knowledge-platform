@@ -20,6 +20,7 @@ import {
   WorkspaceRole,
 } from '../src/modules/workspaces/entities/workspace-member.entity';
 import { WorkspacesModule } from '../src/modules/workspaces/workspaces.module';
+import { EmbeddingService } from '../src/modules/retrieval/embedding.service';
 import { RedisModule } from '../src/redis/redis.module';
 
 jest.setTimeout(180_000);
@@ -74,7 +75,18 @@ describe('workspace and knowledge-base authorization', () => {
         AuthModule,
         WorkspacesModule,
       ],
-    }).compile();
+    })
+      .overrideProvider(EmbeddingService)
+      .useValue({
+        embed: jest.fn((inputs: string[]) =>
+          Promise.resolve({
+            model: 'integration-embedding',
+            dimensions: 3,
+            vectors: inputs.map(() => [0.1, 0.2, 0.3]),
+          }),
+        ),
+      })
+      .compile();
     app = module.createNestApplication();
     configureApp(app);
     await app.init();
@@ -264,7 +276,7 @@ describe('workspace and knowledge-base authorization', () => {
       [firstVersionId],
     );
     expect(indexedChunks).toEqual([
-      { content: 'first document version', embedding: null },
+      { content: 'first document version', embedding: '[0.1,0.2,0.3]' },
     ]);
 
     const searchUrl = `/api/v1/workspaces/${workspaceId}/knowledge-bases/${knowledgeBaseId}/search`;
@@ -276,13 +288,15 @@ describe('workspace and knowledge-base authorization', () => {
       .expect(({ body }) =>
         expect(body).toMatchObject({
           query: 'document version',
-          mode: 'keyword',
+          mode: 'hybrid',
           results: [
             {
               documentId,
               fileName: '西电_实习内容_v1.4.txt',
               versionNumber: 1,
               content: 'first document version',
+              keywordRank: 1,
+              vectorRank: 1,
             },
           ],
         }),
