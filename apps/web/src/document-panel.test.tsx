@@ -41,6 +41,27 @@ describe('DocumentPanel', () => {
       version.id,
     ]);
   });
+
+  it('describes a ready version as successfully parsed on its first attempt', async () => {
+    const readyVersion = {
+      ...version,
+      status: 'ready' as const,
+      attemptCount: 1,
+      errorCode: null,
+      errorMessage: null,
+    };
+    vi.mocked(documentClient).detail.mockResolvedValue({
+      ...document,
+      latestVersion: readyVersion,
+      versions: [readyVersion],
+    });
+
+    renderPanel('member');
+    await userEvent.click(await screen.findByRole('button', { name: /incident.md/ }));
+
+    expect(await screen.findByText('解析成功 · 第 1 次尝试')).toBeInTheDocument();
+    expect(screen.queryByText('1 / 3')).not.toBeInTheDocument();
+  });
 });
 
 function renderPanel(role: 'owner' | 'member') {

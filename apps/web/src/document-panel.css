@@ -19,7 +19,8 @@
 }
 .knowledge-list li > button:hover, .knowledge-list li.selected > button { background: #f4f8f6; }
 .knowledge-list li.selected { box-shadow: inset 3px 0 0 var(--brand); }
-.knowledge-list li > button > span:nth-child(2) { min-width: 0; display: grid; gap: 0.3rem; }
+.knowledge-copy { min-width: 0; display: grid; gap: 0.3rem; }
+.knowledge-copy strong, .knowledge-copy small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .knowledge-list li small { overflow: hidden; color: var(--muted); font-size: 0.74rem; text-overflow: ellipsis; white-space: nowrap; }
 
 .document-section { margin-top: 1rem; overflow: hidden; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }

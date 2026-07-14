@@ -342,7 +342,7 @@ function KnowledgeBasePanel({
             <li key={item.id} className={selectedId === item.id ? 'selected' : ''}>
               <button type="button" onClick={() => onSelect(item.id)} aria-pressed={selectedId === item.id}>
                 <span className="knowledge-icon" aria-hidden="true"><BookOpenText size={19} /></span>
-                <span><strong>{item.name}</strong><small>{item.description ?? '尚未添加描述'}</small></span>
+                <span className="knowledge-copy"><strong>{item.name}</strong><small>{item.description ?? '尚未添加描述'}</small></span>
                 <time dateTime={item.updatedAt}>{formatDate(item.updatedAt)}</time>
               </button>
             </li>

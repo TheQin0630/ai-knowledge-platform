@@ -79,10 +79,16 @@ export function DocumentPanel({ accessToken, workspace, knowledgeBase, onSession
 function DocumentDetail({ document, loading, canManage, retrying, onRetry }: { document?: KnowledgeDocument; loading: boolean; canManage: boolean; retrying: boolean; onRetry: (documentId: string, versionId: string) => void }) {
   if (loading) return <aside className="document-detail" aria-busy="true">正在加载详情…</aside>;
   if (!document) return <aside className="document-detail empty"><FileText size={24} /><p>选择文档查看版本与解析状态</p></aside>;
-  return <aside className="document-detail"><header><p className="section-kicker">DOCUMENT DETAIL</p><h3>{document.fileName}</h3></header><ol className="version-list">{document.versions?.map((version) => <li key={version.id}><div><strong>版本 {version.versionNumber}</strong><StatusBadge status={version.status} /></div><dl><div><dt>大小</dt><dd>{formatBytes(version.sizeBytes)}</dd></div><div><dt>解析尝试</dt><dd>{version.attemptCount} / 3</dd></div></dl>{version.errorMessage ? <p className="version-error" role="alert">{version.errorMessage}</p> : null}{canManage && version.status === 'failed' ? <button className="secondary-button retry-button" type="button" disabled={retrying} onClick={() => onRetry(document.id, version.id)}><RefreshCw size={15} />重新解析</button> : null}</li>)}</ol></aside>;
+  return <aside className="document-detail"><header><p className="section-kicker">DOCUMENT DETAIL</p><h3>{document.fileName}</h3></header><ol className="version-list">{document.versions?.map((version) => <li key={version.id}><div><strong>版本 {version.versionNumber}</strong><StatusBadge status={version.status} /></div><dl><div><dt>大小</dt><dd>{formatBytes(version.sizeBytes)}</dd></div><div><dt>解析状态</dt><dd>{parseAttemptLabel(version.status, version.attemptCount)}</dd></div></dl>{version.errorMessage ? <p className="version-error" role="alert">{version.errorMessage}</p> : null}{canManage && version.status === 'failed' ? <button className="secondary-button retry-button" type="button" disabled={retrying} onClick={() => onRetry(document.id, version.id)}><RefreshCw size={15} />重新解析</button> : null}</li>)}</ol></aside>;
 }
 
 function StatusBadge({ status }: { status: DocumentStatus }) { const labels: Record<DocumentStatus, string> = { queued: '排队中', processing: '解析中', ready: '已就绪', failed: '失败' }; return <span className={`document-status ${status}`}>{labels[status]}</span>; }
 function DocumentError({ retry }: { retry: () => void }) { return <div className="content-error" role="alert"><div><strong>无法加载文档</strong><p>服务暂时不可用，请稍后重试。</p></div><button className="secondary-button" type="button" onClick={retry}>重试</button></div>; }
 function uploadError(error: unknown): string { if (!(error instanceof ApiError)) return '上传失败'; if (error.code === 'DOCUMENT_SIZE_INVALID') return '文件需小于 25 MB'; if (error.code === 'DOCUMENT_TYPE_UNSUPPORTED' || error.code === 'DOCUMENT_CONTENT_INVALID') return '文件类型或内容无效'; if (error.status === 403) return '当前角色无上传权限'; return '上传失败，请重试'; }
 function formatBytes(value: number): string { return value < 1024 * 1024 ? `${Math.max(1, Math.round(value / 1024))} KB` : `${(value / 1024 / 1024).toFixed(1)} MB`; }
+function parseAttemptLabel(status: DocumentStatus, attemptCount: number): string {
+  if (status === 'ready') return `解析成功 · 第 ${attemptCount} 次尝试`;
+  if (status === 'processing') return `正在进行第 ${attemptCount} 次尝试`;
+  if (status === 'queued') return attemptCount > 0 ? `等待第 ${attemptCount + 1} 次尝试` : '等待首次解析';
+  return `已尝试 ${attemptCount} 次（最多 3 次）`;
+}
