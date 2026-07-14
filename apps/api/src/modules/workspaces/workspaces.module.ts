@@ -13,6 +13,7 @@ import { S3DocumentStorage } from '../documents/document-storage.service';
 import { DocumentParserService } from '../documents/document-parser.service';
 import { DocumentQueueService } from '../documents/document-queue.service';
 import { DocumentIndexService } from '../retrieval/document-index.service';
+import { DocumentIndexBackfillService } from '../retrieval/document-index-backfill.service';
 import { EmbeddingService } from '../retrieval/embedding.service';
 import { DocumentChunk } from '../retrieval/entities/document-chunk.entity';
 import { TextChunkerService } from '../retrieval/text-chunker.service';
@@ -52,6 +53,7 @@ import { WorkspacesService } from './workspaces.service';
     TextChunkerService,
     EmbeddingService,
     DocumentIndexService,
+    DocumentIndexBackfillService,
     RetrievalService,
     S3DocumentStorage,
     { provide: DOCUMENT_STORAGE, useExisting: S3DocumentStorage },
