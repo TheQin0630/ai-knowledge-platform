@@ -17,6 +17,10 @@ export interface EnvironmentVariables {
   S3_BUCKET: string;
   S3_ACCESS_KEY: string;
   S3_SECRET_KEY: string;
+  EMBEDDING_BASE_URL?: string;
+  EMBEDDING_API_KEY?: string;
+  EMBEDDING_MODEL?: string;
+  EMBEDDING_TIMEOUT_MS?: number;
 }
 
 const environmentValidationSchema: ObjectSchema<EnvironmentVariables> =
@@ -48,6 +52,17 @@ const environmentValidationSchema: ObjectSchema<EnvironmentVariables> =
       .required(),
     S3_ACCESS_KEY: Joi.string().min(3).required(),
     S3_SECRET_KEY: Joi.string().min(8).required(),
+    EMBEDDING_BASE_URL: Joi.string()
+      .empty('')
+      .uri({ scheme: ['http', 'https'] })
+      .optional(),
+    EMBEDDING_API_KEY: Joi.string().empty('').min(1).optional(),
+    EMBEDDING_MODEL: Joi.string().empty('').trim().min(1).optional(),
+    EMBEDDING_TIMEOUT_MS: Joi.number()
+      .integer()
+      .min(1000)
+      .max(120_000)
+      .default(30_000),
   }).unknown(true);
 
 export function validateEnvironment(

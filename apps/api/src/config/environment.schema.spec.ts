@@ -21,6 +21,26 @@ describe('environmentValidationSchema', () => {
     expect(result.PORT).toBe(3000);
   });
 
+  it('accepts optional OpenAI-compatible embedding configuration', () => {
+    const result = validateEnvironment({
+      ...validEnvironment,
+      EMBEDDING_BASE_URL: 'http://127.0.0.1:11434/v1',
+      EMBEDDING_MODEL: 'nomic-embed-text',
+      EMBEDDING_TIMEOUT_MS: '15000',
+    });
+
+    expect(result.EMBEDDING_TIMEOUT_MS).toBe(15000);
+  });
+
+  it('rejects embedding settings without a valid provider URL', () => {
+    expect(() =>
+      validateEnvironment({
+        ...validEnvironment,
+        EMBEDDING_BASE_URL: 'not-a-url',
+      }),
+    ).toThrow(/EMBEDDING_BASE_URL/);
+  });
+
   it('rejects missing service URLs, storage settings and JWT secrets', () => {
     expect(() =>
       validateEnvironment({ NODE_ENV: 'test', PORT: '3000' }),
