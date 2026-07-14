@@ -114,7 +114,9 @@ export class DocumentsService {
     file?: Express.Multer.File,
   ): Promise<DocumentView> {
     validateFile(file);
-    const mediaType = mediaTypeFor(file.originalname);
+    const fileName = decodeMultipartFileName(file.originalname);
+    validateFileName(fileName);
+    const mediaType = mediaTypeFor(fileName);
     validateContent(file.buffer, mediaType);
     const created = await this.dataSource.transaction(async (manager) => {
       await this.access.requireMembership(
@@ -140,7 +142,7 @@ export class DocumentsService {
           knowledgeBaseId,
         })
         .andWhere('LOWER(document.file_name) = LOWER(:fileName)', {
-          fileName: file.originalname,
+          fileName,
         })
         .getOne();
       if (!document)
@@ -148,7 +150,7 @@ export class DocumentsService {
           repository.create({
             id: randomUUID(),
             knowledgeBaseId,
-            fileName: file.originalname,
+            fileName,
             createdBy: userId,
           }),
         );
@@ -289,20 +291,31 @@ function validateFile(
         message: 'Document must be between 1 byte and 25 MB',
       },
     });
-  if (!supportedDocumentTypes.has(extname(file.originalname).toLowerCase()))
+}
+
+function validateFileName(fileName: string): void {
+  if (!supportedDocumentTypes.has(extname(fileName).toLowerCase()))
     throw new BadRequestException({
       error: {
         code: 'DOCUMENT_TYPE_UNSUPPORTED',
         message: 'Supported document types are PDF, DOCX, TXT and Markdown',
       },
     });
-  if (file.originalname.length > 255)
+  if (fileName.length > 255)
     throw new BadRequestException({
       error: {
         code: 'DOCUMENT_NAME_INVALID',
         message: 'Document file name must not exceed 255 characters',
       },
     });
+}
+
+export function decodeMultipartFileName(originalName: string): string {
+  if ([...originalName].some((character) => character.charCodeAt(0) > 255)) {
+    return originalName;
+  }
+  const decoded = Buffer.from(originalName, 'latin1').toString('utf8');
+  return decoded.includes('\uFFFD') ? originalName : decoded;
 }
 function mediaTypeFor(fileName: string): string {
   return supportedDocumentTypes.get(extname(fileName).toLowerCase())!;

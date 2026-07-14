@@ -232,11 +232,15 @@ describe('workspace and knowledge-base authorization', () => {
     const firstUpload = await request(app.getHttpServer())
       .post(documentsUrl)
       .auth(owner.token, { type: 'bearer' })
-      .attach('file', Buffer.from('first document version'), 'runbook.txt')
+      .attach(
+        'file',
+        Buffer.from('first document version'),
+        '西电_实习内容_v1.4.txt',
+      )
       .expect(201);
     const documentId = readId(firstUpload.body);
     expect(firstUpload.body).toMatchObject({
-      fileName: 'runbook.txt',
+      fileName: '西电_实习内容_v1.4.txt',
       latestVersion: { versionNumber: 1, status: 'queued' },
     });
 
@@ -251,7 +255,11 @@ describe('workspace and knowledge-base authorization', () => {
     await request(app.getHttpServer())
       .post(documentsUrl)
       .auth(owner.token, { type: 'bearer' })
-      .attach('file', Buffer.from('second document version'), 'runbook.txt')
+      .attach(
+        'file',
+        Buffer.from('second document version'),
+        '西电_实习内容_v1.4.txt',
+      )
       .expect(201)
       .expect(({ body }) =>
         expect(body).toMatchObject({
