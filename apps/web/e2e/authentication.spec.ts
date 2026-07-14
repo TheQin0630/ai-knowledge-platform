@@ -50,6 +50,65 @@ test('renders a focused login experience', async ({ page }, testInfo) => {
   await page.screenshot({ path: testInfo.outputPath('login.png'), fullPage: true });
 });
 
+test('registers a new account and enters the workbench', async ({ page }) => {
+  await page.route('**/api/v1/auth/refresh', async (route) => {
+    await route.fulfill({
+      status: 401,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        error: {
+          code: 'INVALID_REFRESH_TOKEN',
+          message: 'Refresh token is invalid or expired',
+        },
+      }),
+    });
+  });
+  await page.route('**/api/v1/auth/register', async (route) => {
+    expect(route.request().postDataJSON()).toEqual({
+      email: currentUser.email,
+      password: 'correct-password',
+    });
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify(currentUser),
+    });
+  });
+  await page.route('**/api/v1/auth/login', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        accessToken: 'registered-browser-access-token',
+        tokenType: 'Bearer',
+        expiresIn: 900,
+        user: currentUser,
+      }),
+    });
+  });
+  await page.route('**/api/v1/workspaces', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: '[]',
+    });
+  });
+
+  await page.goto('/');
+  await page.getByRole('button', { name: '创建账户' }).click();
+  await expect(page.getByRole('heading', { name: '创建账户' })).toBeVisible();
+  await page.getByLabel('工作邮箱').fill(currentUser.email);
+  await page.getByLabel('密码', { exact: true }).fill('correct-password');
+  await page.getByLabel('确认密码').fill('correct-password');
+  await page.getByRole('button', { name: '注册并进入' }).click();
+
+  await expect(page.getByRole('heading', { name: '知识工作台' })).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+  expect(consoleProblems).toEqual([
+    'error: Failed to load resource: the server responded with a status of 401 (Unauthorized)',
+  ]);
+});
+
 test('restores the protected workbench', async ({ page }, testInfo) => {
   await page.route('**/api/v1/auth/refresh', async (route) => {
     await route.fulfill({

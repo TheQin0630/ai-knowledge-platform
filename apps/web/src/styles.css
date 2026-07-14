@@ -347,6 +347,35 @@ select:focus-visible {
   font-size: 0.78rem;
 }
 
+.auth-switch {
+  margin-top: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.auth-switch button {
+  padding: 0;
+  border: 0;
+  color: var(--brand);
+  background: transparent;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.auth-switch button:hover {
+  color: var(--brand-strong);
+  text-decoration: underline;
+}
+
+.auth-switch + .login-support {
+  margin-top: 1rem;
+}
+
 .session-skeleton {
   min-height: 100vh;
   display: grid;

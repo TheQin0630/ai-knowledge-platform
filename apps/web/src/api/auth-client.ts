@@ -36,6 +36,13 @@ export class ApiError extends Error {
 }
 
 export const authClient = {
+  register(email: string, password: string): Promise<CurrentUser> {
+    return apiRequest<CurrentUser>('/api/v1/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+  },
+
   login(email: string, password: string): Promise<LoginSession> {
     return apiRequest<LoginSession>('/api/v1/auth/login', {
       method: 'POST',

@@ -60,6 +60,70 @@ describe('authentication workspace', () => {
     );
   });
 
+  it('registers and enters the workbench without persisting the access token', async () => {
+    const password = 'correct-password';
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse(401, invalidRefreshError))
+      .mockResolvedValueOnce(jsonResponse(201, user))
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          accessToken: 'registered-access-token',
+          tokenType: 'Bearer',
+          expiresIn: 900,
+          user,
+        }),
+      )
+      .mockResolvedValueOnce(jsonResponse(200, []));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+
+    await userEvent.click(
+      await screen.findByRole('button', { name: '创建账户' }),
+    );
+    await userEvent.type(screen.getByLabelText('工作邮箱'), user.email);
+    await userEvent.type(screen.getByLabelText('密码'), password);
+    await userEvent.type(screen.getByLabelText('确认密码'), password);
+    await userEvent.click(screen.getByRole('button', { name: '注册并进入' }));
+
+    expect(
+      await screen.findByRole('heading', { name: '知识工作台' }),
+    ).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      '/api/v1/auth/register',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ email: user.email, password }),
+      }),
+    );
+    expect(fetchMock.mock.calls[2]?.[0]).toBe('/api/v1/auth/login');
+    expect(localStorage).toHaveLength(0);
+  });
+
+  it('rejects mismatched registration passwords before calling the API', async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse(401, invalidRefreshError));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+
+    await userEvent.click(
+      await screen.findByRole('button', { name: '创建账户' }),
+    );
+    await userEvent.type(screen.getByLabelText('工作邮箱'), user.email);
+    await userEvent.type(screen.getByLabelText('密码'), 'correct-password');
+    await userEvent.type(screen.getByLabelText('确认密码'), 'different-password');
+    await userEvent.click(screen.getByRole('button', { name: '注册并进入' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '两次输入的密码不一致。',
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('restores a cookie-backed session and logs out', async () => {
     const fetchMock = vi
       .fn<typeof fetch>()

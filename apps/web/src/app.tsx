@@ -142,6 +142,7 @@ function LoginScreen({
   initialMessage?: string;
   onAuthenticated: (session: LoginSession) => void;
 }) {
+  const [mode, setMode] = useState<'login' | 'register'>('login');
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState(initialMessage);
@@ -151,12 +152,25 @@ function LoginScreen({
     const data = new FormData(event.currentTarget);
     const emailEntry = data.get('email');
     const passwordEntry = data.get('password');
+    const passwordConfirmationEntry = data.get('passwordConfirmation');
     const email = typeof emailEntry === 'string' ? emailEntry : '';
     const password = typeof passwordEntry === 'string' ? passwordEntry : '';
+    const passwordConfirmation =
+      typeof passwordConfirmationEntry === 'string'
+        ? passwordConfirmationEntry
+        : '';
+
+    if (mode === 'register' && password !== passwordConfirmation) {
+      setMessage('两次输入的密码不一致。');
+      return;
+    }
 
     setSubmitting(true);
     setMessage(undefined);
     try {
+      if (mode === 'register') {
+        await authClient.register(email, password);
+      }
       onAuthenticated(await authClient.login(email, password));
     } catch (error) {
       setMessage(errorMessage(error));
@@ -198,9 +212,17 @@ function LoginScreen({
 
         <div className="login-form-wrap">
           <header className="login-header">
-            <p className="eyebrow">欢迎回来</p>
-            <h2 id="login-title">登录工作区</h2>
-            <p>使用你的组织账号继续。</p>
+            <p className="eyebrow">
+              {mode === 'login' ? '欢迎回来' : '开始使用'}
+            </p>
+            <h2 id="login-title">
+              {mode === 'login' ? '登录工作区' : '创建账户'}
+            </h2>
+            <p>
+              {mode === 'login'
+                ? '使用你的组织账号继续。'
+                : '注册后即可创建你的第一个 Workspace。'}
+            </p>
           </header>
 
           <form
@@ -222,7 +244,7 @@ function LoginScreen({
                 id="email"
                 name="email"
                 type="email"
-                autoComplete="username"
+                autoComplete={mode === 'login' ? 'username' : 'email'}
                 maxLength={320}
                 placeholder="name@company.com"
                 required
@@ -237,7 +259,9 @@ function LoginScreen({
                   id="password"
                   name="password"
                   type={passwordVisible ? 'text' : 'password'}
-                  autoComplete="current-password"
+                  autoComplete={
+                    mode === 'login' ? 'current-password' : 'new-password'
+                  }
                   minLength={12}
                   maxLength={128}
                   placeholder="输入账户密码"
@@ -255,12 +279,53 @@ function LoginScreen({
               </div>
             </div>
 
+            {mode === 'register' ? (
+              <div className="field-group">
+                <label htmlFor="passwordConfirmation">确认密码</label>
+                <div className="password-field">
+                  <input
+                    id="passwordConfirmation"
+                    name="passwordConfirmation"
+                    type={passwordVisible ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    minLength={12}
+                    maxLength={128}
+                    placeholder="再次输入账户密码"
+                    required
+                  />
+                </div>
+              </div>
+            ) : null}
+
             <button className="primary-button" type="submit" disabled={submitting}>
-              <span>{submitting ? '正在验证' : '登录'}</span>
+              <span>
+                {submitting
+                  ? mode === 'login'
+                    ? '正在验证'
+                    : '正在创建'
+                  : mode === 'login'
+                    ? '登录'
+                    : '注册并进入'}
+              </span>
               <ArrowUpRight size={18} aria-hidden="true" />
             </button>
           </form>
 
+          <div className="auth-switch">
+            <span>{mode === 'login' ? '还没有账户？' : '已有账户？'}</span>
+            <button
+              type="button"
+              onClick={() => {
+                setMode((current) =>
+                  current === 'login' ? 'register' : 'login',
+                );
+                setMessage(undefined);
+                setPasswordVisible(false);
+              }}
+            >
+              {mode === 'login' ? '创建账户' : '返回登录'}
+            </button>
+          </div>
           <p className="login-support">账户访问问题请联系组织管理员</p>
         </div>
       </section>
@@ -288,6 +353,8 @@ function errorMessage(error: unknown): string {
   switch (error.code) {
     case 'INVALID_CREDENTIALS':
       return '邮箱或密码不正确。';
+    case 'IDENTITY_CONFLICT':
+      return '该邮箱已注册，请直接登录。';
     case 'AUTH_RATE_LIMITED':
       return error.retryAfterSeconds
         ? `尝试次数过多，请在 ${error.retryAfterSeconds} 秒后重试。`
