@@ -1,4 +1,7 @@
 import { createPersistenceDataSource } from './typeorm.options';
+import { loadMigrationEnvironment } from './migration-environment';
+
+loadMigrationEnvironment();
 
 const databaseUrl = process.env.DATABASE_URL;
 
