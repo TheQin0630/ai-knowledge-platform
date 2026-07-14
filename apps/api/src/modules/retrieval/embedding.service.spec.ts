@@ -6,6 +6,7 @@ describe('EmbeddingService', () => {
 
   it('degrades to keyword-only mode when no endpoint is configured', async () => {
     const service = new EmbeddingService(config({}));
+    expect(service.isConfigured()).toBe(false);
     await expect(service.embed(['知识库检索'])).resolves.toBeNull();
   });
 
@@ -25,6 +26,7 @@ describe('EmbeddingService', () => {
         EMBEDDING_MODEL: 'example-model',
       }),
     );
+    expect(service.isConfigured()).toBe(true);
 
     await expect(service.embed(['知识库检索'])).resolves.toEqual({
       model: 'example-model',

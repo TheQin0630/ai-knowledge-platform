@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { DocumentIndexService } from './document-index.service';
+import { EmbeddingService } from './embedding.service';
 
 interface HistoricalVersion {
   id: string;
@@ -14,6 +15,7 @@ export class DocumentIndexBackfillService implements OnApplicationBootstrap {
   constructor(
     private readonly dataSource: DataSource,
     private readonly indexer: DocumentIndexService,
+    private readonly embeddings: EmbeddingService,
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
@@ -42,11 +44,20 @@ export class DocumentIndexBackfillService implements OnApplicationBootstrap {
        FROM document_versions dv
        WHERE dv.status = 'ready'
          AND dv.extracted_text IS NOT NULL
-         AND NOT EXISTS (
-           SELECT 1 FROM document_chunks chunk WHERE chunk.document_version_id = dv.id
+         AND (
+           NOT EXISTS (
+             SELECT 1 FROM document_chunks chunk WHERE chunk.document_version_id = dv.id
+           )
+           OR (
+             $1::boolean AND EXISTS (
+               SELECT 1 FROM document_chunks chunk
+               WHERE chunk.document_version_id = dv.id AND chunk.embedding IS NULL
+             )
+           )
          )
        ORDER BY dv.created_at
        LIMIT 100`,
+      [this.embeddings.isConfigured()],
     );
     for (const version of versions) {
       await this.indexer.index(version.id, version.extracted_text);

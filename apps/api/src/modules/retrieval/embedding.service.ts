@@ -16,6 +16,10 @@ interface ProviderItem {
 export class EmbeddingService {
   constructor(private readonly config: ConfigService) {}
 
+  isConfigured(): boolean {
+    return Boolean(this.config.get<string>('EMBEDDING_BASE_URL'));
+  }
+
   async embed(inputs: string[]): Promise<EmbeddingBatch | null> {
     const baseUrl = this.config.get<string>('EMBEDDING_BASE_URL');
     if (!baseUrl) return null;
