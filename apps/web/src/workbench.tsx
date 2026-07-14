@@ -23,6 +23,7 @@ import type {
 import { DocumentPanel } from './document-panel';
 import { RetrievalPanel } from './retrieval-panel';
 import { RagPanel } from './rag-panel';
+import { EvaluationPanel } from './evaluation-panel';
 
 interface WorkspaceWorkbenchProps {
   accessToken: string;
@@ -180,6 +181,12 @@ export function WorkspaceWorkbench({
                 onSessionExpired={onSessionExpired}
               />
               <RagPanel
+                accessToken={accessToken}
+                workspaceId={selectedWorkspace.id}
+                knowledgeBaseId={selectedKnowledgeBase.id}
+                onSessionExpired={onSessionExpired}
+              />
+              <EvaluationPanel
                 accessToken={accessToken}
                 workspaceId={selectedWorkspace.id}
                 knowledgeBaseId={selectedKnowledgeBase.id}
