@@ -32,6 +32,8 @@ export class EvaluationsService {
         question: testCase.question,
         answer: answer.answer,
         citations: answer.citations,
+        model: answer.model,
+        retrievalMode: answer.retrievalMode,
         ...scoreEvaluationCase(
           answer,
           testCase.expectedKeywords,
@@ -51,9 +53,7 @@ export class EvaluationsService {
         userId,
         input.name,
         'rrf-v1',
-        results.find((item) => item.citations.length)?.citations
-          ? 'configured-provider'
-          : null,
+        results.find((item) => item.model)?.model ?? null,
         results.length,
         summary.keywordCoverage,
         summary.citationCoverage,
