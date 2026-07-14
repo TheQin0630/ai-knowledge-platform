@@ -12,6 +12,10 @@ import { DOCUMENT_STORAGE } from '../documents/document-ingestion.constants';
 import { S3DocumentStorage } from '../documents/document-storage.service';
 import { DocumentParserService } from '../documents/document-parser.service';
 import { DocumentQueueService } from '../documents/document-queue.service';
+import { DocumentIndexService } from '../retrieval/document-index.service';
+import { EmbeddingService } from '../retrieval/embedding.service';
+import { DocumentChunk } from '../retrieval/entities/document-chunk.entity';
+import { TextChunkerService } from '../retrieval/text-chunker.service';
 import { Workspace } from './entities/workspace.entity';
 import { WorkspaceMember } from './entities/workspace-member.entity';
 import { WorkspaceAccessService } from './workspace-access.service';
@@ -27,6 +31,7 @@ import { WorkspacesService } from './workspaces.service';
       KnowledgeBase,
       Document,
       DocumentVersion,
+      DocumentChunk,
     ]),
   ],
   controllers: [
@@ -41,6 +46,9 @@ import { WorkspacesService } from './workspaces.service';
     DocumentsService,
     DocumentParserService,
     DocumentQueueService,
+    TextChunkerService,
+    EmbeddingService,
+    DocumentIndexService,
     S3DocumentStorage,
     { provide: DOCUMENT_STORAGE, useExisting: S3DocumentStorage },
   ],

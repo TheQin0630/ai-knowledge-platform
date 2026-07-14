@@ -243,6 +243,7 @@ describe('workspace and knowledge-base authorization', () => {
       fileName: '西电_实习内容_v1.4.txt',
       latestVersion: { versionNumber: 1, status: 'queued' },
     });
+    const firstVersionId = readNestedId(firstUpload.body, 'latestVersion');
 
     const readyDetail = await waitForReady(
       `${documentsUrl}/${documentId}`,
@@ -251,6 +252,19 @@ describe('workspace and knowledge-base authorization', () => {
     expect(readyDetail).toMatchObject({
       latestVersion: { versionNumber: 1, status: 'ready', attemptCount: 1 },
     });
+
+    const indexedChunks = await dataSource.query<
+      Array<{ content: string; embedding: string | null }>
+    >(
+      `SELECT content, embedding::text AS embedding
+       FROM document_chunks
+       WHERE document_version_id = $1
+       ORDER BY chunk_index`,
+      [firstVersionId],
+    );
+    expect(indexedChunks).toEqual([
+      { content: 'first document version', embedding: null },
+    ]);
 
     await request(app.getHttpServer())
       .post(documentsUrl)
@@ -337,6 +351,13 @@ function appServer(): App {
 
 function readId(value: unknown): string {
   return readString(value, 'id');
+}
+
+function readNestedId(value: unknown, key: string): string {
+  if (typeof value !== 'object' || value === null || !(key in value)) {
+    throw new Error(`Expected ${key} object`);
+  }
+  return readId((value as Record<string, unknown>)[key]);
 }
 
 function readString(value: unknown, field: string): string {

@@ -9,6 +9,7 @@ import { Job, Queue, Worker } from 'bullmq';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EnvironmentVariables } from '../../config/environment.schema';
+import { DocumentIndexService } from '../retrieval/document-index.service';
 import {
   DOCUMENT_QUEUE_NAME,
   DOCUMENT_STORAGE,
@@ -36,6 +37,7 @@ export class DocumentQueueService implements OnApplicationShutdown {
     private readonly versions: Repository<DocumentVersion>,
     @Inject(DOCUMENT_STORAGE) private readonly storage: DocumentStorage,
     private readonly parser: DocumentParserService,
+    private readonly indexer: DocumentIndexService,
   ) {
     const redisUrl = config.get('REDIS_URL', { infer: true });
     const connection = redisConnection(redisUrl);
@@ -84,6 +86,7 @@ export class DocumentQueueService implements OnApplicationShutdown {
     try {
       const body = await this.storage.get(version.objectKey);
       const extractedText = await this.parser.extract(body, version.mediaType);
+      const indexResult = await this.indexer.index(version.id, extractedText);
       await this.versions.update(version.id, {
         status: DocumentVersionStatus.READY,
         extractedText,
@@ -91,6 +94,7 @@ export class DocumentQueueService implements OnApplicationShutdown {
       this.logger.log({
         event: 'document_parse_succeeded',
         versionId: version.id,
+        ...indexResult,
       });
     } catch (error) {
       const finalAttempt = job.attemptsMade + 1 >= (job.opts.attempts ?? 1);
