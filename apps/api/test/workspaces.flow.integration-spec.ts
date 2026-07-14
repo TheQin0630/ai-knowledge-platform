@@ -333,6 +333,57 @@ describe('workspace and knowledge-base authorization', () => {
     expect((versionedDetail as { versions: unknown[] }).versions).toHaveLength(
       2,
     );
+    await request(app.getHttpServer())
+      .delete(`${documentsUrl}/${documentId}`)
+      .auth(owner.token, { type: 'bearer' })
+      .send({ confirmName: 'wrong.txt' })
+      .expect(409);
+    await request(app.getHttpServer())
+      .delete(`${documentsUrl}/${documentId}`)
+      .auth(owner.token, { type: 'bearer' })
+      .send({ confirmName: '西电_实习内容_v1.4.txt' })
+      .expect(204);
+    await request(app.getHttpServer())
+      .get(documentsUrl)
+      .auth(owner.token, { type: 'bearer' })
+      .expect(200)
+      .expect([]);
+  });
+
+  it('requires explicit names and an empty workspace for permanent deletion', async () => {
+    const owner = await createIdentity('delete-owner@example.com');
+    const workspace = await request(app.getHttpServer())
+      .post('/api/v1/workspaces')
+      .auth(owner.token, { type: 'bearer' })
+      .send({ name: 'Disposable' })
+      .expect(201);
+    const workspaceId = readId(workspace.body);
+    const kb = await request(app.getHttpServer())
+      .post(`/api/v1/workspaces/${workspaceId}/knowledge-bases`)
+      .auth(owner.token, { type: 'bearer' })
+      .send({ name: 'Temporary KB' })
+      .expect(201);
+    const knowledgeBaseId = readId(kb.body);
+    await request(app.getHttpServer())
+      .delete(`/api/v1/workspaces/${workspaceId}`)
+      .auth(owner.token, { type: 'bearer' })
+      .send({ confirmName: 'Disposable' })
+      .expect(409)
+      .expect(({ body }) =>
+        expect(body).toMatchObject({ error: { code: 'WORKSPACE_NOT_EMPTY' } }),
+      );
+    await request(app.getHttpServer())
+      .delete(
+        `/api/v1/workspaces/${workspaceId}/knowledge-bases/${knowledgeBaseId}`,
+      )
+      .auth(owner.token, { type: 'bearer' })
+      .send({ confirmName: 'Temporary KB' })
+      .expect(204);
+    await request(app.getHttpServer())
+      .delete(`/api/v1/workspaces/${workspaceId}`)
+      .auth(owner.token, { type: 'bearer' })
+      .send({ confirmName: 'Disposable' })
+      .expect(204);
   });
 
   async function createIdentity(

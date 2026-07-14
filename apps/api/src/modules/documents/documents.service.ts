@@ -254,6 +254,34 @@ export class DocumentsService {
     });
   }
 
+  async delete(
+    workspaceId: string,
+    knowledgeBaseId: string,
+    documentId: string,
+    userId: string,
+    confirmName: string,
+  ): Promise<void> {
+    await this.requireKnowledgeBase(workspaceId, knowledgeBaseId, userId, true);
+    const document = await this.documents.findOneBy({
+      id: documentId,
+      knowledgeBaseId,
+    });
+    if (!document) throw documentNotFound();
+    if (document.fileName !== confirmName)
+      throw new ConflictException({
+        error: {
+          code: 'DELETE_CONFIRMATION_MISMATCH',
+          message: 'Confirmation name does not match',
+        },
+      });
+    const versions = await this.versions.find({
+      where: { documentId },
+      select: { objectKey: true },
+    });
+    await this.storage.deleteMany(versions.map((version) => version.objectKey));
+    await this.documents.delete({ id: documentId, knowledgeBaseId });
+  }
+
   private async requireKnowledgeBase(
     workspaceId: string,
     knowledgeBaseId: string,

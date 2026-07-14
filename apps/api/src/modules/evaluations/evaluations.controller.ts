@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Param,
@@ -13,6 +14,7 @@ import { AccessTokenGuard } from '../auth/guard/access-token.guard';
 import type { AuthenticatedRequest } from '../auth/guard/access-token.guard';
 import { RunEvaluationDto } from './dto/run-evaluation.dto';
 import { EvaluationsService } from './evaluations.service';
+import { ConfirmDeleteDto } from '../../common/dto/confirm-delete.dto';
 
 @Controller(
   'workspaces/:workspaceId/knowledge-bases/:knowledgeBaseId/evaluations',
@@ -42,6 +44,23 @@ export class EvaluationsController {
       knowledgeBaseId,
       request.auth.userId,
       body,
+    );
+  }
+  @Delete(':evaluationId')
+  @HttpCode(204)
+  delete(
+    @Param('workspaceId', new ParseUUIDPipe()) workspaceId: string,
+    @Param('knowledgeBaseId', new ParseUUIDPipe()) knowledgeBaseId: string,
+    @Param('evaluationId', new ParseUUIDPipe()) evaluationId: string,
+    @Req() request: AuthenticatedRequest,
+    @Body() body: ConfirmDeleteDto,
+  ) {
+    return this.evaluations.delete(
+      workspaceId,
+      knowledgeBaseId,
+      evaluationId,
+      request.auth.userId,
+      body.confirmName,
     );
   }
 }

@@ -1,4 +1,16 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
+import { ConfirmDeleteDto } from '../../common/dto/confirm-delete.dto';
 import { AccessTokenGuard } from '../auth/guard/access-token.guard';
 import type { AuthenticatedRequest } from '../auth/guard/access-token.guard';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto';
@@ -20,5 +32,19 @@ export class WorkspacesController {
     @Body() input: CreateWorkspaceDto,
   ) {
     return this.workspaces.create(request.auth.userId, input);
+  }
+
+  @Delete(':workspaceId')
+  @HttpCode(204)
+  delete(
+    @Param('workspaceId', new ParseUUIDPipe()) workspaceId: string,
+    @Req() request: AuthenticatedRequest,
+    @Body() body: ConfirmDeleteDto,
+  ) {
+    return this.workspaces.delete(
+      workspaceId,
+      request.auth.userId,
+      body.confirmName,
+    );
   }
 }

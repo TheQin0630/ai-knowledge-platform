@@ -1,5 +1,6 @@
 import {
   CreateBucketCommand,
+  DeleteObjectsCommand,
   GetObjectCommand,
   HeadBucketCommand,
   PutObjectCommand,
@@ -12,6 +13,7 @@ import { EnvironmentVariables } from '../../config/environment.schema';
 export interface DocumentStorage {
   put(key: string, body: Buffer, mediaType: string): Promise<void>;
   get(key: string): Promise<Buffer>;
+  deleteMany(keys: string[]): Promise<void>;
 }
 
 @Injectable()
@@ -58,6 +60,16 @@ export class S3DocumentStorage implements DocumentStorage, OnModuleInit {
     );
     if (!result.Body) throw new Error('Stored document has no body');
     return Buffer.from(await result.Body.transformToByteArray());
+  }
+
+  async deleteMany(keys: string[]): Promise<void> {
+    if (keys.length === 0) return;
+    await this.client.send(
+      new DeleteObjectsCommand({
+        Bucket: this.bucket,
+        Delete: { Objects: keys.map((Key) => ({ Key })), Quiet: true },
+      }),
+    );
   }
 }
 

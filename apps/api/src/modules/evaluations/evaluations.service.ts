@@ -1,7 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { RagService } from '../rag/rag.service';
 import { WorkspaceAccessService } from '../workspaces/workspace-access.service';
+import { WorkspaceRole } from '../workspaces/entities/workspace-member.entity';
 import { RunEvaluationDto } from './dto/run-evaluation.dto';
 import { scoreEvaluationCase } from './evaluation-scorer';
 
@@ -92,6 +97,42 @@ export class EvaluationsService {
       created_at AS "createdAt" FROM evaluation_runs WHERE knowledge_base_id = $1 ORDER BY created_at DESC LIMIT 30`,
       [knowledgeBaseId],
     );
+  }
+
+  async delete(
+    workspaceId: string,
+    knowledgeBaseId: string,
+    evaluationId: string,
+    userId: string,
+    confirmName: string,
+  ): Promise<void> {
+    await this.access.requireMembership(workspaceId, userId, [
+      WorkspaceRole.OWNER,
+      WorkspaceRole.ADMIN,
+    ]);
+    const rows = await this.dataSource.query<Array<{ name: string }>>(
+      `SELECT er.name FROM evaluation_runs er JOIN knowledge_bases kb ON kb.id = er.knowledge_base_id
+       WHERE er.id = $1 AND er.knowledge_base_id = $2 AND kb.workspace_id = $3`,
+      [evaluationId, knowledgeBaseId, workspaceId],
+    );
+    const run = rows[0];
+    if (!run)
+      throw new NotFoundException({
+        error: {
+          code: 'EVALUATION_NOT_FOUND',
+          message: 'Evaluation run not found',
+        },
+      });
+    if (run.name !== confirmName)
+      throw new ConflictException({
+        error: {
+          code: 'DELETE_CONFIRMATION_MISMATCH',
+          message: 'Confirmation name does not match',
+        },
+      });
+    await this.dataSource.query(`DELETE FROM evaluation_runs WHERE id = $1`, [
+      evaluationId,
+    ]);
   }
 }
 

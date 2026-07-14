@@ -5,10 +5,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { ragClient } from './api/rag-client';
 import { RagPanel } from './rag-panel';
 
-vi.mock('./api/rag-client', () => ({ ragClient: { ask: vi.fn() } }));
+vi.mock('./api/rag-client', () => ({ ragClient: { ask: vi.fn(), models: vi.fn() } }));
 
 describe('RagPanel', () => {
   it('renders an answer with verifiable citations', async () => {
+    vi.mocked(ragClient).models.mockResolvedValue([
+      { id: 'glm', label: 'GLM', defaultModel: 'glm-4-flash' },
+    ]);
     vi.mocked(ragClient).ask.mockResolvedValue({
       conversationId: 'conversation',
       question: '如何回滚？',

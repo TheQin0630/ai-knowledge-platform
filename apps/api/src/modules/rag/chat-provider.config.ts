@@ -39,24 +39,37 @@ const presets: Record<
     model: 'qwen3:8b',
   },
 };
+const labels: Record<ChatProvider, string> = {
+  openai: 'OpenAI',
+  glm: '智谱 GLM',
+  deepseek: 'DeepSeek',
+  qwen: '通义千问',
+  ollama: 'Ollama',
+  custom: '自定义模型',
+};
 
 export function resolveChatProvider(
   config: ConfigService,
+  requestedProvider?: string,
+  requestedModel?: string,
 ): ResolvedChatProvider {
-  const selected = config.get<string>('CHAT_PROVIDER');
+  const selected = requestedProvider ?? config.get<string>('CHAT_PROVIDER');
   if (!selected) {
     const baseUrl = config.get<string>('CHAT_BASE_URL');
     if (!baseUrl) unavailable('Chat provider is not configured');
     return {
       provider: 'custom',
       baseUrl,
-      model: config.get<string>('CHAT_MODEL') ?? 'gpt-4.1-mini',
+      model:
+        requestedModel ?? config.get<string>('CHAT_MODEL') ?? 'gpt-4.1-mini',
       apiKey: config.get<string>('CHAT_API_KEY'),
     };
   }
   if (!(selected in presets))
     unavailable(`Unsupported chat provider: ${selected}`);
   const provider = selected as Exclude<ChatProvider, 'custom'>;
+  if (requestedProvider && !isConfiguredPreset(config, provider))
+    unavailable('Requested chat provider is not configured');
   const preset = presets[provider];
   const apiKey =
     (preset.key ? config.get<string>(preset.key) : undefined) ??
@@ -66,11 +79,53 @@ export function resolveChatProvider(
   return {
     provider,
     baseUrl: config.get<string>('CHAT_BASE_URL') ?? preset.baseUrl,
-    model: config.get<string>('CHAT_MODEL') ?? preset.model,
+    model:
+      requestedModel ??
+      (provider === config.get<string>('CHAT_PROVIDER')
+        ? config.get<string>('CHAT_MODEL')
+        : undefined) ??
+      preset.model,
     ...(apiKey ? { apiKey } : {}),
   };
 }
 
+export function listConfiguredChatProviders(
+  config: ConfigService,
+): Array<{ id: ChatProvider; label: string; defaultModel: string }> {
+  const selected = config.get<string>('CHAT_PROVIDER');
+  const providers: Array<{
+    id: ChatProvider;
+    label: string;
+    defaultModel: string;
+  }> = (Object.keys(presets) as Array<Exclude<ChatProvider, 'custom'>>)
+    .filter((provider) => isConfiguredPreset(config, provider))
+    .map((provider) => ({
+      id: provider,
+      label: labels[provider],
+      defaultModel:
+        provider === selected
+          ? (config.get<string>('CHAT_MODEL') ?? presets[provider].model)
+          : presets[provider].model,
+    }));
+  if (!selected && config.get<string>('CHAT_BASE_URL'))
+    providers.push({
+      id: 'custom',
+      label: labels.custom,
+      defaultModel: config.get<string>('CHAT_MODEL') ?? 'gpt-4.1-mini',
+    });
+  return providers;
+}
+
+function isConfiguredPreset(
+  config: ConfigService,
+  provider: Exclude<ChatProvider, 'custom'>,
+): boolean {
+  const preset = presets[provider];
+  return (
+    provider === config.get<string>('CHAT_PROVIDER') ||
+    Boolean(preset.key && config.get<string>(preset.key))
+  );
+}
 function unavailable(message: string): never {
   throw new ServiceUnavailableException({
     error: { code: 'CHAT_PROVIDER_UNAVAILABLE', message },

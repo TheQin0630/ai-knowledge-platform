@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { FileText, RefreshCw, UploadCloud } from 'lucide-react';
+import { FileText, RefreshCw, Trash2, UploadCloud } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { ApiError } from './api/auth-client';
 import { documentClient } from './api/document-client';
 import type { DocumentStatus, KnowledgeDocument } from './api/document-client';
 import type { KnowledgeBase, WorkspaceSummary } from './api/workspace-client';
 import './document-panel.css';
+import { ConfirmDeleteDialog } from './confirm-delete-dialog';
 
 interface UploadItem { id: string; name: string; progress: number; state: 'uploading' | 'done' | 'failed'; error?: string }
 
@@ -14,6 +15,7 @@ export function DocumentPanel({ accessToken, workspace, knowledgeBase, onSession
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploads, setUploads] = useState<UploadItem[]>([]);
   const [selectedId, setSelectedId] = useState<string>();
+  const [deleting, setDeleting] = useState<KnowledgeDocument>();
   const canManage = workspace.role === 'owner' || workspace.role === 'admin';
   const queryKey = ['documents', workspace.id, knowledgeBase.id] as const;
   const documents = useQuery({
@@ -34,6 +36,10 @@ export function DocumentPanel({ accessToken, workspace, knowledgeBase, onSession
     mutationFn: ({ documentId, versionId }: { documentId: string; versionId: string }) => documentClient.retry(accessToken, workspace.id, knowledgeBase.id, documentId, versionId),
     onSuccess: async () => Promise.all([queryClient.invalidateQueries({ queryKey }), queryClient.invalidateQueries({ queryKey: ['document', workspace.id, knowledgeBase.id, selectedId] })]),
   });
+  const remove = useMutation({ mutationFn: ({ id, name }: { id: string; name: string }) =>
+    documentClient.delete(accessToken, workspace.id, knowledgeBase.id, id, name), onSuccess: async () => {
+      setDeleting(undefined); setSelectedId(undefined); await queryClient.invalidateQueries({ queryKey });
+    } });
 
   useEffect(() => {
     if ([documents.error, detail.error, retry.error].some((error) => error instanceof ApiError && error.status === 401)) onSessionExpired();
@@ -70,16 +76,21 @@ export function DocumentPanel({ accessToken, workspace, knowledgeBase, onSession
           {!documents.isPending && !documents.isError && documents.data.length === 0 ? <div className="knowledge-empty" role="status"><FileText size={24} /><strong>暂无文档</strong><p>{canManage ? '上传 PDF、DOCX、TXT 或 Markdown，单文件不超过 25 MB。' : '等待管理员上传文档。'}</p></div> : null}
           {documents.data?.length ? <ul className="document-list">{documents.data.map((item) => <li key={item.id}><button type="button" className={selectedId === item.id ? 'selected' : ''} onClick={() => setSelectedId(item.id)}><span><strong>{item.fileName}</strong><small>v{item.latestVersion.versionNumber} · {formatBytes(item.latestVersion.sizeBytes)}</small></span><StatusBadge status={item.latestVersion.status} /></button></li>)}</ul> : null}
         </div>
-        <DocumentDetail document={detail.data} loading={detail.isPending && Boolean(selectedId)} canManage={canManage} retrying={retry.isPending} onRetry={(documentId, versionId) => retry.mutate({ documentId, versionId })} />
+        <DocumentDetail document={detail.data} loading={detail.isPending && Boolean(selectedId)} canManage={canManage}
+          retrying={retry.isPending} onRetry={(documentId, versionId) => retry.mutate({ documentId, versionId })}
+          onDelete={() => detail.data && setDeleting(detail.data)} />
       </div>
+      {deleting ? <ConfirmDeleteDialog resourceLabel="文档" resourceName={deleting.fileName} pending={remove.isPending}
+        error={remove.isError ? '删除失败，请重试。' : undefined} onClose={() => setDeleting(undefined)}
+        onConfirm={(name) => remove.mutate({ id: deleting.id, name })} /> : null}
     </section>
   );
 }
 
-function DocumentDetail({ document, loading, canManage, retrying, onRetry }: { document?: KnowledgeDocument; loading: boolean; canManage: boolean; retrying: boolean; onRetry: (documentId: string, versionId: string) => void }) {
+function DocumentDetail({ document, loading, canManage, retrying, onRetry, onDelete }: { document?: KnowledgeDocument; loading: boolean; canManage: boolean; retrying: boolean; onRetry: (documentId: string, versionId: string) => void; onDelete: () => void }) {
   if (loading) return <aside className="document-detail" aria-busy="true">正在加载详情…</aside>;
   if (!document) return <aside className="document-detail empty"><FileText size={24} /><p>选择文档查看版本与解析状态</p></aside>;
-  return <aside className="document-detail"><header><p className="section-kicker">DOCUMENT DETAIL</p><h3>{document.fileName}</h3></header><ol className="version-list">{document.versions?.map((version) => <li key={version.id}><div><strong>版本 {version.versionNumber}</strong><StatusBadge status={version.status} /></div><dl><div><dt>大小</dt><dd>{formatBytes(version.sizeBytes)}</dd></div><div><dt>解析状态</dt><dd>{parseAttemptLabel(version.status, version.attemptCount)}</dd></div></dl>{version.errorMessage ? <p className="version-error" role="alert">{version.errorMessage}</p> : null}{canManage && version.status === 'failed' ? <button className="secondary-button retry-button" type="button" disabled={retrying} onClick={() => onRetry(document.id, version.id)}><RefreshCw size={15} />重新解析</button> : null}</li>)}</ol></aside>;
+  return <aside className="document-detail"><header><div><p className="section-kicker">DOCUMENT DETAIL</p><h3>{document.fileName}</h3></div>{canManage ? <button className="icon-danger" type="button" aria-label={`删除文档 ${document.fileName}`} onClick={onDelete}><Trash2 size={16} /></button> : null}</header><ol className="version-list">{document.versions?.map((version) => <li key={version.id}><div><strong>版本 {version.versionNumber}</strong><StatusBadge status={version.status} /></div><dl><div><dt>大小</dt><dd>{formatBytes(version.sizeBytes)}</dd></div><div><dt>解析状态</dt><dd>{parseAttemptLabel(version.status, version.attemptCount)}</dd></div></dl>{version.errorMessage ? <p className="version-error" role="alert">{version.errorMessage}</p> : null}{canManage && version.status === 'failed' ? <button className="secondary-button retry-button" type="button" disabled={retrying} onClick={() => onRetry(document.id, version.id)}><RefreshCw size={15} />重新解析</button> : null}</li>)}</ol></aside>;
 }
 
 function StatusBadge({ status }: { status: DocumentStatus }) { const labels: Record<DocumentStatus, string> = { queued: '排队中', processing: '解析中', ready: '已就绪', failed: '失败' }; return <span className={`document-status ${status}`}>{labels[status]}</span>; }

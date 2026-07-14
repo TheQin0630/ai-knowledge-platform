@@ -34,8 +34,18 @@ test('shows document status, detail and retry without overflow', async ({ page }
       }),
   );
 
+  await page.route(
+    `**/api/v1/workspaces/${workspaceId}/knowledge-bases/${knowledgeBaseId}/answers/models`,
+    (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([{ id: 'glm', label: 'GLM', defaultModel: 'glm-4-flash' }]),
+      }),
+  );
+
   await page.goto(`/workspaces/${workspaceId}`);
-  await page.getByRole('button', { name: /运维手册/ }).click();
+  await page.locator('.knowledge-list > li > button:first-child').click();
   await expect(page.getByRole('heading', { name: '运维手册' })).toBeVisible();
   await page.getByRole('button', { name: /incident-response.md/ }).click();
   await expect(page.getByText('文档中没有可提取文本')).toBeVisible();

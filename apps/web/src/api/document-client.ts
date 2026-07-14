@@ -39,6 +39,10 @@ export const documentClient = {
   retry(accessToken: string, workspaceId: string, knowledgeBaseId: string, documentId: string, versionId: string) {
     return authorizedRequest<DocumentVersion>(`${basePath(workspaceId, knowledgeBaseId)}/${documentId}/versions/${versionId}/retry`, accessToken, { method: 'POST' });
   },
+  delete(accessToken: string, workspaceId: string, knowledgeBaseId: string, documentId: string, confirmName: string) {
+    return authorizedRequest<void>(`${basePath(workspaceId, knowledgeBaseId)}/${documentId}`, accessToken,
+      { method: 'DELETE', body: JSON.stringify({ confirmName }) });
+  },
   upload(accessToken: string, workspaceId: string, knowledgeBaseId: string, file: File, onProgress: (percent: number) => void): Promise<KnowledgeDocument> {
     return new Promise((resolve, reject) => {
       const request = new XMLHttpRequest();

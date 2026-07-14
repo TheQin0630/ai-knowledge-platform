@@ -1,18 +1,24 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BarChart3, Play } from 'lucide-react';
-import { FormEvent, useEffect } from 'react';
+import { BarChart3, Play, Trash2 } from 'lucide-react';
+import { FormEvent, useEffect, useState } from 'react';
 import { ApiError } from './api/auth-client';
 import { evaluationClient } from './api/evaluation-client';
 import './evaluation-panel.css';
+import { ConfirmDeleteDialog } from './confirm-delete-dialog';
 
 export function EvaluationPanel({ accessToken, workspaceId, knowledgeBaseId, onSessionExpired }: {
   accessToken: string; workspaceId: string; knowledgeBaseId: string; onSessionExpired: () => void;
 }) {
   const client = useQueryClient();
+  const [deleting, setDeleting] = useState<{ id: string; name: string }>();
   const key = ['evaluations', workspaceId, knowledgeBaseId];
   const runs = useQuery({ queryKey: key, queryFn: () => evaluationClient.list(accessToken, workspaceId, knowledgeBaseId) });
   const run = useMutation({ mutationFn: evaluationClient.run.bind(null, accessToken, workspaceId, knowledgeBaseId),
     onSuccess: () => client.invalidateQueries({ queryKey: key }) });
+  const remove = useMutation({ mutationFn: ({ id, name }: { id: string; name: string }) =>
+    evaluationClient.delete(accessToken, workspaceId, knowledgeBaseId, id, name), onSuccess: async () => {
+      setDeleting(undefined); await client.invalidateQueries({ queryKey: key });
+    } });
   useEffect(() => { if ([runs.error, run.error].some((error) => error instanceof ApiError && error.status === 401)) onSessionExpired(); },
     [onSessionExpired, run.error, runs.error]);
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -34,10 +40,14 @@ export function EvaluationPanel({ accessToken, workspaceId, knowledgeBaseId, onS
       <button className="primary-button" disabled={run.isPending}><Play size={15} />{run.isPending ? '运行中…' : '运行评测'}</button></form>
     {run.isError ? <p className="evaluation-error" role="alert">评测未完成，请检查模型配置和知识库内容。</p> : null}
     {runs.data?.length ? <div className="evaluation-table" role="table"><div role="row" className="evaluation-head">
-      <span>运行</span><span>关键词</span><span>引用</span><span>有依据</span></div>{runs.data.map((item) => <div role="row" key={item.id}>
+      <span>运行</span><span>关键词</span><span>引用</span><span>有依据</span><span>操作</span></div>{runs.data.map((item) => <div role="row" key={item.id}>
         <span><strong>{item.name}</strong><small>{item.retrievalVersion} · {item.caseCount} 题</small></span>
         <span>{percent(item.keywordCoverage)}</span><span>{percent(item.citationCoverage)}</span><span>{percent(item.groundedRate)}</span>
+        <button className="table-delete" aria-label={`删除评测 ${item.name}`} onClick={() => setDeleting({ id: item.id, name: item.name })}><Trash2 size={15} /></button>
       </div>)}</div> : <p className="evaluation-empty">尚无评测运行。建立第一条基线后即可比较后续检索或模型版本。</p>}
+    {deleting ? <ConfirmDeleteDialog resourceLabel="评测" resourceName={deleting.name} pending={remove.isPending}
+      error={remove.isError ? '删除失败，请重试。' : undefined} onClose={() => setDeleting(undefined)}
+      onConfirm={(name) => remove.mutate({ id: deleting.id, name })} /> : null}
   </section>;
 }
 

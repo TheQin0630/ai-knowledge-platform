@@ -19,6 +19,7 @@ export class RagService {
     knowledgeBaseId: string,
     userId: string,
     question: string,
+    selection?: { provider?: string; model?: string },
   ) {
     const retrieval = await this.retrieval.search(
       workspaceId,
@@ -45,6 +46,7 @@ export class RagService {
     const generated = await this.chat.answer(
       buildSystemPrompt(sources),
       question,
+      selection,
     );
     const allowed = new Map(sources.map((source) => [source.id, source.hit]));
     const citations = generated.citationIds.flatMap((id) => {

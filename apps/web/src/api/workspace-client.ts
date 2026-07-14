@@ -33,6 +33,11 @@ export const workspaceClient = {
       body: JSON.stringify(input),
     });
   },
+  deleteWorkspace(accessToken: string, workspaceId: string, confirmName: string): Promise<void> {
+    return authorizedRequest(`/api/v1/workspaces/${workspaceId}`, accessToken, {
+      method: 'DELETE', body: JSON.stringify({ confirmName }),
+    });
+  },
 
   listKnowledgeBases(
     accessToken: string,
@@ -54,6 +59,12 @@ export const workspaceClient = {
       accessToken,
       { method: 'POST', body: JSON.stringify(input) },
     );
+  },
+  deleteKnowledgeBase(accessToken: string, workspaceId: string, knowledgeBaseId: string,
+    confirmName: string): Promise<void> {
+    return authorizedRequest(`/api/v1/workspaces/${workspaceId}/knowledge-bases/${knowledgeBaseId}`, accessToken, {
+      method: 'DELETE', body: JSON.stringify({ confirmName }),
+    });
   },
 };
 

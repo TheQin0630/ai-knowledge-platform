@@ -1,6 +1,9 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { resolveChatProvider } from './chat-provider.config';
+import {
+  listConfiguredChatProviders,
+  resolveChatProvider,
+} from './chat-provider.config';
 
 export interface GeneratedAnswer {
   answer: string;
@@ -12,8 +15,20 @@ export interface GeneratedAnswer {
 export class ChatCompletionService {
   constructor(private readonly config: ConfigService) {}
 
-  async answer(system: string, question: string): Promise<GeneratedAnswer> {
-    const provider = resolveChatProvider(this.config);
+  listProviders() {
+    return listConfiguredChatProviders(this.config);
+  }
+
+  async answer(
+    system: string,
+    question: string,
+    selection?: { provider?: string; model?: string },
+  ): Promise<GeneratedAnswer> {
+    const provider = resolveChatProvider(
+      this.config,
+      selection?.provider,
+      selection?.model,
+    );
     const { baseUrl, model } = provider;
     let response: Response;
     try {
@@ -39,7 +54,7 @@ export class ChatCompletionService {
     if (!response.ok)
       throw unavailable(`Chat provider failed with status ${response.status}`);
     const parsed = readProviderResponse(await response.json());
-    return { ...parsed, model };
+    return { ...parsed, model: `${provider.provider}/${model}` };
   }
 
   private headers(apiKey?: string): Record<string, string> {

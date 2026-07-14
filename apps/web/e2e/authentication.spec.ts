@@ -245,7 +245,7 @@ test('switches workspaces and creates a knowledge base', async ({ page }, testIn
   );
   await expect(page.getByRole('heading', { name: '平台工程' })).toBeVisible();
   await expect(page.getByText('架构决策')).toBeVisible();
-  await page.getByLabel('Workspace').selectOption(customerWorkspace.id);
+  await page.getByLabel('Workspace', { exact: true }).selectOption(customerWorkspace.id);
   await expect(page.getByRole('heading', { name: '客户成功' })).toBeVisible();
   await page.getByRole('button', { name: '新建知识库' }).click();
   await page.getByLabel('知识库名称').fill('客户手册');

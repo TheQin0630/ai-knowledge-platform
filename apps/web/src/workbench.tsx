@@ -1,16 +1,22 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   BookOpenText,
+  BarChart3,
+  Bot,
+  ChevronDown,
   CircleUserRound,
   Database,
   Gauge,
+  FileText,
   Library,
   LogOut,
   Plus,
+  Search,
+  Trash2,
   X,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import type { FormEvent, KeyboardEvent } from 'react';
+import type { FormEvent, KeyboardEvent, ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ApiError } from './api/auth-client';
 import type { CurrentUser } from './api/auth-client';
@@ -24,6 +30,8 @@ import { DocumentPanel } from './document-panel';
 import { RetrievalPanel } from './retrieval-panel';
 import { RagPanel } from './rag-panel';
 import { EvaluationPanel } from './evaluation-panel';
+import { ConfirmDeleteDialog } from './confirm-delete-dialog';
+import './workbench-modern.css';
 
 interface WorkspaceWorkbenchProps {
   accessToken: string;
@@ -45,6 +53,7 @@ export function WorkspaceWorkbench({
   const [workspaceFormOpen, setWorkspaceFormOpen] = useState(false);
   const [knowledgeBaseFormOpen, setKnowledgeBaseFormOpen] = useState(false);
   const [selectedKnowledgeBaseId, setSelectedKnowledgeBaseId] = useState<string>();
+  const [deleteTarget, setDeleteTarget] = useState<{ type: 'workspace' | 'knowledgeBase'; id: string; name: string }>();
 
   const workspacesQuery = useQuery({
     queryKey: ['workspaces'],
@@ -115,10 +124,22 @@ export function WorkspaceWorkbench({
       ]);
     },
   });
+  const removeResource = useMutation({ mutationFn: async (target: { type: 'workspace' | 'knowledgeBase'; id: string; name: string }) => {
+    if (target.type === 'workspace') return workspaceClient.deleteWorkspace(accessToken, target.id, target.name);
+    if (!selectedWorkspace) throw new Error('Workspace is required');
+    return workspaceClient.deleteKnowledgeBase(accessToken, selectedWorkspace.id, target.id, target.name);
+  }, onSuccess: async (_, target) => {
+    setDeleteTarget(undefined);
+    if (target.type === 'workspace') { await queryClient.invalidateQueries({ queryKey: ['workspaces'] }); void navigate('/'); }
+    else { setSelectedKnowledgeBaseId(undefined); await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['knowledge-bases', selectedWorkspace?.id] }),
+      queryClient.invalidateQueries({ queryKey: ['workspaces'] }),
+    ]); }
+  } });
 
   return (
     <div className="app-shell">
-      <Sidebar user={user} />
+      <Sidebar user={user} hasKnowledgeBase={Boolean(selectedKnowledgeBase)} />
       <div className="workspace-shell">
         <Topbar
           workspaces={workspacesQuery.data ?? []}
@@ -139,10 +160,11 @@ export function WorkspaceWorkbench({
               <p>{workspaceSubtitle(workspacesQuery, selectedWorkspace)}</p>
             </div>
             {selectedWorkspace ? (
-              <div className="identity-chip">
+              <div className="page-actions"><div className="identity-chip">
                 <CircleUserRound size={18} aria-hidden="true" />
                 <span>{workspaceRoleLabel(selectedWorkspace.role)}</span>
-              </div>
+              </div>{selectedWorkspace.role === 'owner' ? <button className="icon-danger" aria-label={`删除 Workspace ${selectedWorkspace.name}`}
+                onClick={() => setDeleteTarget({ type: 'workspace', id: selectedWorkspace.id, name: selectedWorkspace.name })}><Trash2 size={17} /></button> : null}</div>
             ) : null}
           </header>
 
@@ -162,36 +184,37 @@ export function WorkspaceWorkbench({
               onCreate={() => setKnowledgeBaseFormOpen(true)}
               selectedId={selectedKnowledgeBaseId}
               onSelect={setSelectedKnowledgeBaseId}
+              onDelete={(item) => setDeleteTarget({ type: 'knowledgeBase', id: item.id, name: item.name })}
             />
           ) : (
             <LoadingPanel label="正在切换 Workspace" />
           )}
           {selectedWorkspace && selectedKnowledgeBase ? (
             <>
-              <DocumentPanel
+              <CollapsibleModule id="documents" title="文档与解析" icon={<FileText size={17} />}><DocumentPanel
                 accessToken={accessToken}
                 workspace={selectedWorkspace}
                 knowledgeBase={selectedKnowledgeBase}
                 onSessionExpired={onSessionExpired}
-              />
-              <RetrievalPanel
+              /></CollapsibleModule>
+              <CollapsibleModule id="retrieval" title="检索调试" icon={<Search size={17} />}><RetrievalPanel
                 accessToken={accessToken}
                 workspaceId={selectedWorkspace.id}
                 knowledgeBaseId={selectedKnowledgeBase.id}
                 onSessionExpired={onSessionExpired}
-              />
-              <RagPanel
+              /></CollapsibleModule>
+              <CollapsibleModule id="answers" title="知识库问答" icon={<Bot size={17} />}><RagPanel
                 accessToken={accessToken}
                 workspaceId={selectedWorkspace.id}
                 knowledgeBaseId={selectedKnowledgeBase.id}
                 onSessionExpired={onSessionExpired}
-              />
-              <EvaluationPanel
+              /></CollapsibleModule>
+              <CollapsibleModule id="evaluations" title="效果评测" icon={<BarChart3 size={17} />}><EvaluationPanel
                 accessToken={accessToken}
                 workspaceId={selectedWorkspace.id}
                 knowledgeBaseId={selectedKnowledgeBase.id}
                 onSessionExpired={onSessionExpired}
-              />
+              /></CollapsibleModule>
             </>
           ) : null}
         </main>
@@ -222,11 +245,16 @@ export function WorkspaceWorkbench({
           }
         />
       ) : null}
+      {deleteTarget ? <ConfirmDeleteDialog resourceLabel={deleteTarget.type === 'workspace' ? 'Workspace' : '知识库'}
+        resourceName={deleteTarget.name} pending={removeResource.isPending}
+        error={removeResource.error instanceof ApiError && removeResource.error.code === 'WORKSPACE_NOT_EMPTY'
+          ? 'Workspace 非空，请先删除其中的知识库。' : removeResource.isError ? '删除失败，请重试。' : undefined}
+        onClose={() => setDeleteTarget(undefined)} onConfirm={(name) => removeResource.mutate({ ...deleteTarget, name })} /> : null}
     </div>
   );
 }
 
-function Sidebar({ user }: { user: CurrentUser }) {
+function Sidebar({ user, hasKnowledgeBase }: { user: CurrentUser; hasKnowledgeBase: boolean }) {
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
@@ -240,6 +268,12 @@ function Sidebar({ user }: { user: CurrentUser }) {
         <a className="nav-item" href="#knowledge-bases">
           <BookOpenText size={18} aria-hidden="true" />知识库
         </a>
+        {hasKnowledgeBase ? <>
+          <a className="nav-item" href="#documents"><FileText size={18} />文档</a>
+          <a className="nav-item" href="#retrieval"><Search size={18} />检索</a>
+          <a className="nav-item" href="#answers"><Bot size={18} />问答</a>
+          <a className="nav-item" href="#evaluations"><BarChart3 size={18} />评测</a>
+        </> : null}
       </nav>
       <div className="sidebar-account">
         <span className="avatar" aria-hidden="true">{user.email.charAt(0).toUpperCase()}</span>
@@ -325,6 +359,7 @@ function KnowledgeBasePanel({
   onCreate,
   selectedId,
   onSelect,
+  onDelete,
 }: {
   workspace: WorkspaceSummary;
   items: KnowledgeBase[];
@@ -334,6 +369,7 @@ function KnowledgeBasePanel({
   onCreate: () => void;
   selectedId?: string;
   onSelect: (id: string) => void;
+  onDelete: (item: KnowledgeBase) => void;
 }) {
   const canCreate = workspace.role === 'owner' || workspace.role === 'admin';
   return (
@@ -368,12 +404,19 @@ function KnowledgeBasePanel({
                 <span className="knowledge-copy"><strong>{item.name}</strong><small>{item.description ?? '尚未添加描述'}</small></span>
                 <time dateTime={item.updatedAt}>{formatDate(item.updatedAt)}</time>
               </button>
+              {canCreate ? <button type="button" className="knowledge-delete" aria-label={`删除知识库 ${item.name}`}
+                onClick={() => onDelete(item)}><Trash2 size={15} /></button> : null}
             </li>
           ))}
         </ul>
       ) : null}
     </section>
   );
+}
+
+function CollapsibleModule({ id, title, icon, children }: { id: string; title: string; icon: ReactNode; children: ReactNode }) {
+  return <details className="workbench-module" id={id} open><summary>{icon}<span>{title}</span><ChevronDown size={18} /></summary>
+    <div className="module-content">{children}</div></details>;
 }
 
 function CreateDialog({

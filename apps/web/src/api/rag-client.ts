@@ -18,13 +18,20 @@ export interface RagAnswer {
   citations: RagCitation[];
   createdAt: string;
 }
+export interface ChatModelProvider { id: string; label: string; defaultModel: string }
 
 export const ragClient = {
-  ask(accessToken: string, workspaceId: string, knowledgeBaseId: string, question: string): Promise<RagAnswer> {
+  models(accessToken: string, workspaceId: string, knowledgeBaseId: string): Promise<ChatModelProvider[]> {
+    return apiRequest(`/api/v1/workspaces/${workspaceId}/knowledge-bases/${knowledgeBaseId}/answers/models`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+  },
+  ask(accessToken: string, workspaceId: string, knowledgeBaseId: string, question: string,
+    selection?: { provider?: string; model?: string }): Promise<RagAnswer> {
     return apiRequest(`/api/v1/workspaces/${workspaceId}/knowledge-bases/${knowledgeBaseId}/answers`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question }),
+      body: JSON.stringify({ question, ...selection }),
     });
   },
 };

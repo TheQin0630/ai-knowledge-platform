@@ -1,6 +1,9 @@
 import {
+  Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
   Param,
   ParseUUIDPipe,
   Post,
@@ -14,6 +17,7 @@ import { AccessTokenGuard } from '../auth/guard/access-token.guard';
 import type { AuthenticatedRequest } from '../auth/guard/access-token.guard';
 import { MAX_DOCUMENT_SIZE } from './document-ingestion.constants';
 import { DocumentsService } from './documents.service';
+import { ConfirmDeleteDto } from '../../common/dto/confirm-delete.dto';
 
 @Controller(
   'workspaces/:workspaceId/knowledge-bases/:knowledgeBaseId/documents',
@@ -77,6 +81,24 @@ export class DocumentsController {
       documentId,
       versionId,
       request.auth.userId,
+    );
+  }
+
+  @Delete(':documentId')
+  @HttpCode(204)
+  delete(
+    @Param('workspaceId', new ParseUUIDPipe()) workspaceId: string,
+    @Param('knowledgeBaseId', new ParseUUIDPipe()) knowledgeBaseId: string,
+    @Param('documentId', new ParseUUIDPipe()) documentId: string,
+    @Req() request: AuthenticatedRequest,
+    @Body() body: ConfirmDeleteDto,
+  ) {
+    return this.documents.delete(
+      workspaceId,
+      knowledgeBaseId,
+      documentId,
+      request.auth.userId,
+      body.confirmName,
     );
   }
 }

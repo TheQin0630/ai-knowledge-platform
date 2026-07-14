@@ -18,4 +18,9 @@ export const evaluationClient = {
       method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(input),
     });
   },
+  delete(token: string, workspaceId: string, knowledgeBaseId: string, evaluationId: string, confirmName: string): Promise<void> {
+    return apiRequest(`/api/v1/workspaces/${workspaceId}/knowledge-bases/${knowledgeBaseId}/evaluations/${evaluationId}`, {
+      method: 'DELETE', headers: { Authorization: `Bearer ${token}` }, body: JSON.stringify({ confirmName }),
+    });
+  },
 };

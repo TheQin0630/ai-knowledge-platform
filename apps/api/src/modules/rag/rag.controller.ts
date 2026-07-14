@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   Param,
   ParseUUIDPipe,
@@ -12,11 +13,20 @@ import { AccessTokenGuard } from '../auth/guard/access-token.guard';
 import type { AuthenticatedRequest } from '../auth/guard/access-token.guard';
 import { AskKnowledgeBaseDto } from './dto/ask-knowledge-base.dto';
 import { RagService } from './rag.service';
+import { ChatCompletionService } from './chat-completion.service';
 
 @Controller('workspaces/:workspaceId/knowledge-bases/:knowledgeBaseId/answers')
 @UseGuards(AccessTokenGuard)
 export class RagController {
-  constructor(private readonly rag: RagService) {}
+  constructor(
+    private readonly rag: RagService,
+    private readonly chat: ChatCompletionService,
+  ) {}
+
+  @Get('models')
+  models() {
+    return this.chat.listProviders();
+  }
 
   @Post()
   @HttpCode(200)
@@ -31,6 +41,7 @@ export class RagController {
       knowledgeBaseId,
       request.auth.userId,
       body.question.trim(),
+      { provider: body.provider, model: body.model },
     );
   }
 }

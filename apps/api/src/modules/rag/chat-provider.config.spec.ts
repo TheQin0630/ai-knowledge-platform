@@ -1,5 +1,9 @@
 import { ConfigService } from '@nestjs/config';
-import { resolveChatProvider } from './chat-provider.config';
+import { ServiceUnavailableException } from '@nestjs/common';
+import {
+  listConfiguredChatProviders,
+  resolveChatProvider,
+} from './chat-provider.config';
 
 describe('resolveChatProvider', () => {
   it.each([
@@ -40,6 +44,31 @@ describe('resolveChatProvider', () => {
       model: 'custom',
       apiKey: 'key',
     });
+  });
+
+  it('lists every configured provider without exposing keys', () => {
+    expect(
+      listConfiguredChatProviders(
+        config({
+          CHAT_PROVIDER: 'glm',
+          GLM_API_KEY: 'glm-secret',
+          DEEPSEEK_API_KEY: 'deepseek-secret',
+          CHAT_MODEL: 'glm-test',
+        }),
+      ),
+    ).toEqual([
+      { id: 'glm', label: '智谱 GLM', defaultModel: 'glm-test' },
+      { id: 'deepseek', label: 'DeepSeek', defaultModel: 'deepseek-chat' },
+    ]);
+  });
+
+  it('rejects selecting an unconfigured provider', () => {
+    expect(() =>
+      resolveChatProvider(
+        config({ CHAT_PROVIDER: 'glm', GLM_API_KEY: 'secret' }),
+        'deepseek',
+      ),
+    ).toThrow(ServiceUnavailableException);
   });
 });
 
