@@ -1,5 +1,6 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { resolveChatProvider } from './chat-provider.config';
 
 export interface GeneratedAnswer {
   answer: string;
@@ -12,14 +13,13 @@ export class ChatCompletionService {
   constructor(private readonly config: ConfigService) {}
 
   async answer(system: string, question: string): Promise<GeneratedAnswer> {
-    const baseUrl = this.config.get<string>('CHAT_BASE_URL');
-    if (!baseUrl) throw unavailable('Chat provider is not configured');
-    const model = this.config.get<string>('CHAT_MODEL') ?? 'gpt-4.1-mini';
+    const provider = resolveChatProvider(this.config);
+    const { baseUrl, model } = provider;
     let response: Response;
     try {
       response = await fetch(`${baseUrl.replace(/\/$/, '')}/chat/completions`, {
         method: 'POST',
-        headers: this.headers(),
+        headers: this.headers(provider.apiKey),
         body: JSON.stringify({
           model,
           temperature: 0,
@@ -42,12 +42,11 @@ export class ChatCompletionService {
     return { ...parsed, model };
   }
 
-  private headers(): Record<string, string> {
+  private headers(apiKey?: string): Record<string, string> {
     const headers: Record<string, string> = {
       'content-type': 'application/json',
     };
-    const key = this.config.get<string>('CHAT_API_KEY');
-    if (key) headers.authorization = `Bearer ${key}`;
+    if (apiKey) headers.authorization = `Bearer ${apiKey}`;
     return headers;
   }
 }

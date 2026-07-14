@@ -5,15 +5,27 @@
 Copy `.env.example` to `.env`, replace all secrets, and configure PostgreSQL, Redis and MinIO. Cited answers additionally require an OpenAI-compatible chat endpoint; hybrid vector retrieval requires an embeddings endpoint.
 
 ```env
-CHAT_BASE_URL=https://provider.example/v1
-CHAT_API_KEY=replace-me
-CHAT_MODEL=model-name
+CHAT_PROVIDER=glm
+CHAT_MODEL=glm-4.5-flash
+GLM_API_KEY=replace-me
 EMBEDDING_BASE_URL=https://provider.example/v1
 EMBEDDING_API_KEY=replace-me
 EMBEDDING_MODEL=embedding-model-name
 ```
 
 Never commit `.env` or provider keys.
+
+Supported chat presets:
+
+| Provider | `CHAT_PROVIDER` | Key variable | Default endpoint |
+| --- | --- | --- | --- |
+| OpenAI | `openai` | `OPENAI_API_KEY` | `https://api.openai.com/v1` |
+| 智谱 GLM | `glm` | `GLM_API_KEY` | `https://open.bigmodel.cn/api/paas/v4` |
+| DeepSeek | `deepseek` | `DEEPSEEK_API_KEY` | `https://api.deepseek.com` |
+| 通义千问 | `qwen` | `DASHSCOPE_API_KEY` | `https://dashscope.aliyuncs.com/compatible-mode/v1` |
+| Ollama | `ollama` | none | `http://host.docker.internal:11434/v1` |
+
+`CHAT_MODEL` overrides the preset model. `CHAT_BASE_URL` overrides the preset endpoint. Clear `CHAT_PROVIDER` and use `CHAT_BASE_URL` plus `CHAT_API_KEY` for any other OpenAI-compatible service.
 
 ## Release procedure
 

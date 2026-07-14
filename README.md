@@ -86,7 +86,7 @@ docker compose up --build --wait
 
 Do not deploy with values from `.env.example`.
 
-Chat and embedding providers use separate OpenAI-compatible settings. Configure `CHAT_BASE_URL`, `CHAT_MODEL` and optional `CHAT_API_KEY` for answers; configure `EMBEDDING_BASE_URL`, `EMBEDDING_MODEL` and optional `EMBEDDING_API_KEY` for vector retrieval. Without embeddings the system safely degrades to keyword retrieval; without chat configuration the answer endpoint returns a structured `503`.
+Chat and embedding providers use separate settings. Chat presets support OpenAI, 智谱 GLM, DeepSeek, 通义千问 and Ollama through `CHAT_PROVIDER`; custom OpenAI-compatible endpoints remain supported through `CHAT_BASE_URL`. Configure `EMBEDDING_BASE_URL`, `EMBEDDING_MODEL` and optional `EMBEDDING_API_KEY` for vector retrieval. Without embeddings the system safely degrades to keyword retrieval; without chat configuration the answer endpoint returns a structured `503`.
 
 See [`docs/deployment.md`](docs/deployment.md) for release, health verification and rollback instructions. GitHub Actions runs lint, typecheck, unit tests, builds and a high-severity dependency audit on pushes and pull requests.
 

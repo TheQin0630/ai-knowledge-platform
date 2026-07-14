@@ -25,6 +25,11 @@ export interface EnvironmentVariables {
   CHAT_API_KEY?: string;
   CHAT_MODEL?: string;
   CHAT_TIMEOUT_MS?: number;
+  CHAT_PROVIDER?: 'openai' | 'glm' | 'deepseek' | 'qwen' | 'ollama';
+  OPENAI_API_KEY?: string;
+  GLM_API_KEY?: string;
+  DEEPSEEK_API_KEY?: string;
+  DASHSCOPE_API_KEY?: string;
 }
 
 const environmentValidationSchema: ObjectSchema<EnvironmentVariables> =
@@ -71,7 +76,15 @@ const environmentValidationSchema: ObjectSchema<EnvironmentVariables> =
       .empty('')
       .uri({ scheme: ['http', 'https'] })
       .optional(),
+    CHAT_PROVIDER: Joi.string()
+      .empty('')
+      .valid('openai', 'glm', 'deepseek', 'qwen', 'ollama')
+      .optional(),
     CHAT_API_KEY: Joi.string().empty('').min(1).optional(),
+    OPENAI_API_KEY: Joi.string().empty('').min(1).optional(),
+    GLM_API_KEY: Joi.string().empty('').min(1).optional(),
+    DEEPSEEK_API_KEY: Joi.string().empty('').min(1).optional(),
+    DASHSCOPE_API_KEY: Joi.string().empty('').min(1).optional(),
     CHAT_MODEL: Joi.string().empty('').trim().min(1).optional(),
     CHAT_TIMEOUT_MS: Joi.number()
       .integer()

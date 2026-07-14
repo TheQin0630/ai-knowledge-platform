@@ -28,7 +28,7 @@ export function RagPanel({ accessToken, workspaceId, knowledgeBaseId, onSessionE
       <button className="primary-button" disabled={ask.isPending || question.trim().length < 2}>
         <Send size={16} />{ask.isPending ? '生成中…' : '提问'}</button></div></form>
     {ask.isError ? <p className="rag-error" role="alert">{unavailable
-      ? '尚未配置大模型服务。请配置 CHAT_BASE_URL、CHAT_MODEL 和可选的 CHAT_API_KEY 后重启 API。'
+      ? '尚未配置大模型服务。可设置 CHAT_PROVIDER 为 glm、openai、deepseek、qwen 或 ollama，并配置对应密钥后重启 API。'
       : '问答服务暂时不可用，请稍后重试。'}</p> : null}
     {ask.data ? <article className="rag-answer"><p>{ask.data.answer}</p>
       {ask.data.citations.length ? <ol>{ask.data.citations.map((citation) => <li key={citation.index}>

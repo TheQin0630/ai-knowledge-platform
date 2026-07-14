@@ -51,6 +51,22 @@ describe('environmentValidationSchema', () => {
     expect(result.CHAT_TIMEOUT_MS).toBe(60000);
   });
 
+  it('accepts a GLM provider preset and provider-specific key', () => {
+    const result = validateEnvironment({
+      ...validEnvironment,
+      CHAT_PROVIDER: 'glm',
+      GLM_API_KEY: 'test-key',
+      CHAT_MODEL: 'glm-test',
+    });
+    expect(result.CHAT_PROVIDER).toBe('glm');
+  });
+
+  it('rejects unknown chat provider presets', () => {
+    expect(() =>
+      validateEnvironment({ ...validEnvironment, CHAT_PROVIDER: 'unknown' }),
+    ).toThrow(/CHAT_PROVIDER/);
+  });
+
   it('rejects missing service URLs, storage settings and JWT secrets', () => {
     expect(() =>
       validateEnvironment({ NODE_ENV: 'test', PORT: '3000' }),
