@@ -41,6 +41,16 @@ describe('environmentValidationSchema', () => {
     ).toThrow(/EMBEDDING_BASE_URL/);
   });
 
+  it('accepts optional OpenAI-compatible chat configuration', () => {
+    const result = validateEnvironment({
+      ...validEnvironment,
+      CHAT_BASE_URL: 'http://127.0.0.1:11434/v1',
+      CHAT_MODEL: 'qwen3',
+      CHAT_TIMEOUT_MS: '60000',
+    });
+    expect(result.CHAT_TIMEOUT_MS).toBe(60000);
+  });
+
   it('rejects missing service URLs, storage settings and JWT secrets', () => {
     expect(() =>
       validateEnvironment({ NODE_ENV: 'test', PORT: '3000' }),

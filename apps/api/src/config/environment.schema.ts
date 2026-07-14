@@ -21,6 +21,10 @@ export interface EnvironmentVariables {
   EMBEDDING_API_KEY?: string;
   EMBEDDING_MODEL?: string;
   EMBEDDING_TIMEOUT_MS?: number;
+  CHAT_BASE_URL?: string;
+  CHAT_API_KEY?: string;
+  CHAT_MODEL?: string;
+  CHAT_TIMEOUT_MS?: number;
 }
 
 const environmentValidationSchema: ObjectSchema<EnvironmentVariables> =
@@ -63,6 +67,17 @@ const environmentValidationSchema: ObjectSchema<EnvironmentVariables> =
       .min(1000)
       .max(120_000)
       .default(30_000),
+    CHAT_BASE_URL: Joi.string()
+      .empty('')
+      .uri({ scheme: ['http', 'https'] })
+      .optional(),
+    CHAT_API_KEY: Joi.string().empty('').min(1).optional(),
+    CHAT_MODEL: Joi.string().empty('').trim().min(1).optional(),
+    CHAT_TIMEOUT_MS: Joi.number()
+      .integer()
+      .min(1000)
+      .max(180_000)
+      .default(45_000),
   }).unknown(true);
 
 export function validateEnvironment(

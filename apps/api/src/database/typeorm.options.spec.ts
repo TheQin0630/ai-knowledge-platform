@@ -9,6 +9,7 @@ import { InitialPersistence1783692000000 } from './migrations/1783692000000-init
 import { WorkspacesAndKnowledgeBases1783941600000 } from './migrations/1783941600000-workspaces-and-knowledge-bases';
 import { DocumentIngestion1784029200000 } from './migrations/1784029200000-document-ingestion';
 import { DocumentRetrieval1784115600000 } from './migrations/1784115600000-document-retrieval';
+import { RagConversations1784202000000 } from './migrations/1784202000000-rag-conversations';
 import {
   createNestTypeOrmOptions,
   createPersistenceDataSource,
@@ -43,6 +44,7 @@ describe('TypeORM options', () => {
         WorkspacesAndKnowledgeBases1783941600000,
         DocumentIngestion1784029200000,
         DocumentRetrieval1784115600000,
+        RagConversations1784202000000,
       ],
     });
   });
@@ -69,6 +71,7 @@ describe('TypeORM options', () => {
         WorkspacesAndKnowledgeBases1783941600000,
         DocumentIngestion1784029200000,
         DocumentRetrieval1784115600000,
+        RagConversations1784202000000,
       ],
     });
   });

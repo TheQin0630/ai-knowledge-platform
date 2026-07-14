@@ -19,6 +19,9 @@ import { DocumentChunk } from '../retrieval/entities/document-chunk.entity';
 import { TextChunkerService } from '../retrieval/text-chunker.service';
 import { RetrievalController } from '../retrieval/retrieval.controller';
 import { RetrievalService } from '../retrieval/retrieval.service';
+import { ChatCompletionService } from '../rag/chat-completion.service';
+import { RagController } from '../rag/rag.controller';
+import { RagService } from '../rag/rag.service';
 import { Workspace } from './entities/workspace.entity';
 import { WorkspaceMember } from './entities/workspace-member.entity';
 import { WorkspaceAccessService } from './workspace-access.service';
@@ -42,6 +45,7 @@ import { WorkspacesService } from './workspaces.service';
     KnowledgeBasesController,
     DocumentsController,
     RetrievalController,
+    RagController,
   ],
   providers: [
     WorkspacesService,
@@ -55,6 +59,8 @@ import { WorkspacesService } from './workspaces.service';
     DocumentIndexService,
     DocumentIndexBackfillService,
     RetrievalService,
+    ChatCompletionService,
+    RagService,
     S3DocumentStorage,
     { provide: DOCUMENT_STORAGE, useExisting: S3DocumentStorage },
   ],
