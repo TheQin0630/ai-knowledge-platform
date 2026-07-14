@@ -21,6 +21,7 @@ import type {
   WorkspaceSummary,
 } from './api/workspace-client';
 import { DocumentPanel } from './document-panel';
+import { RetrievalPanel } from './retrieval-panel';
 
 interface WorkspaceWorkbenchProps {
   accessToken: string;
@@ -164,12 +165,20 @@ export function WorkspaceWorkbench({
             <LoadingPanel label="正在切换 Workspace" />
           )}
           {selectedWorkspace && selectedKnowledgeBase ? (
-            <DocumentPanel
-              accessToken={accessToken}
-              workspace={selectedWorkspace}
-              knowledgeBase={selectedKnowledgeBase}
-              onSessionExpired={onSessionExpired}
-            />
+            <>
+              <DocumentPanel
+                accessToken={accessToken}
+                workspace={selectedWorkspace}
+                knowledgeBase={selectedKnowledgeBase}
+                onSessionExpired={onSessionExpired}
+              />
+              <RetrievalPanel
+                accessToken={accessToken}
+                workspaceId={selectedWorkspace.id}
+                knowledgeBaseId={selectedKnowledgeBase.id}
+                onSessionExpired={onSessionExpired}
+              />
+            </>
           ) : null}
         </main>
       </div>
