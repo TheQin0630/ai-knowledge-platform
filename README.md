@@ -16,12 +16,15 @@ The implementation is a strict TypeScript workspace built with NestJS and React.
 - Workspace switching plus knowledge-base list and create flows on desktop and mobile
 - Versioned PDF, DOCX, TXT and Markdown ingestion through MinIO/S3 with BullMQ parsing and retry
 - Upload progress, parsing status, version detail and retry in the responsive knowledge workbench
+- Keyword and pgvector hybrid retrieval with a retrieval debugging workbench
+- OpenAI-compatible, prompt-injection-aware RAG answers with server-validated source citations
+- Persisted evaluation runs with keyword, citation and grounded-answer metrics for version comparison
 - Correlated, structured authentication security events with allowlisted fields
 - Redis for authentication sessions, caching, and background job coordination
 - Non-root, read-only API container
 - Unit, end-to-end, Testcontainers integration, lint, typecheck, and build gates
 
-Retrieval, RAG, and evaluation modules are being delivered incrementally with tests.
+The planned core product path—authentication, workspaces, ingestion, retrieval, cited RAG and evaluation—is implemented.
 
 The authentication contract and verified failure semantics are documented in [`docs/auth-api-contract.md`](docs/auth-api-contract.md). Workspace roles and endpoints are documented in [`docs/workspace-api-contract.md`](docs/workspace-api-contract.md). Document upload and retry semantics are documented in [`docs/document-ingestion-api-contract.md`](docs/document-ingestion-api-contract.md).
 
@@ -82,6 +85,10 @@ docker compose up --build --wait
 ```
 
 Do not deploy with values from `.env.example`.
+
+Chat and embedding providers use separate OpenAI-compatible settings. Configure `CHAT_BASE_URL`, `CHAT_MODEL` and optional `CHAT_API_KEY` for answers; configure `EMBEDDING_BASE_URL`, `EMBEDDING_MODEL` and optional `EMBEDDING_API_KEY` for vector retrieval. Without embeddings the system safely degrades to keyword retrieval; without chat configuration the answer endpoint returns a structured `503`.
+
+See [`docs/deployment.md`](docs/deployment.md) for release, health verification and rollback instructions. GitHub Actions runs lint, typecheck, unit tests, builds and a high-severity dependency audit on pushes and pull requests.
 
 ## Repository Layout
 
