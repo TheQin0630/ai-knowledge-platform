@@ -16,6 +16,8 @@ import { DocumentIndexService } from '../retrieval/document-index.service';
 import { EmbeddingService } from '../retrieval/embedding.service';
 import { DocumentChunk } from '../retrieval/entities/document-chunk.entity';
 import { TextChunkerService } from '../retrieval/text-chunker.service';
+import { RetrievalController } from '../retrieval/retrieval.controller';
+import { RetrievalService } from '../retrieval/retrieval.service';
 import { Workspace } from './entities/workspace.entity';
 import { WorkspaceMember } from './entities/workspace-member.entity';
 import { WorkspaceAccessService } from './workspace-access.service';
@@ -38,6 +40,7 @@ import { WorkspacesService } from './workspaces.service';
     WorkspacesController,
     KnowledgeBasesController,
     DocumentsController,
+    RetrievalController,
   ],
   providers: [
     WorkspacesService,
@@ -49,6 +52,7 @@ import { WorkspacesService } from './workspaces.service';
     TextChunkerService,
     EmbeddingService,
     DocumentIndexService,
+    RetrievalService,
     S3DocumentStorage,
     { provide: DOCUMENT_STORAGE, useExisting: S3DocumentStorage },
   ],

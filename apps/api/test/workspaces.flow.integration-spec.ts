@@ -193,6 +193,7 @@ describe('workspace and knowledge-base authorization', () => {
   it('uploads, parses, versions and authorizes documents through MinIO and BullMQ', async () => {
     const owner = await createIdentity('document-owner@example.com');
     const member = await createIdentity('document-member@example.com');
+    const outsider = await createIdentity('document-outsider@example.com');
     const workspaceResponse = await request(app.getHttpServer())
       .post('/api/v1/workspaces')
       .auth(owner.token, { type: 'bearer' })
@@ -265,6 +266,32 @@ describe('workspace and knowledge-base authorization', () => {
     expect(indexedChunks).toEqual([
       { content: 'first document version', embedding: null },
     ]);
+
+    const searchUrl = `/api/v1/workspaces/${workspaceId}/knowledge-bases/${knowledgeBaseId}/search`;
+    await request(app.getHttpServer())
+      .post(searchUrl)
+      .auth(member.token, { type: 'bearer' })
+      .send({ query: 'document version', limit: 5 })
+      .expect(200)
+      .expect(({ body }) =>
+        expect(body).toMatchObject({
+          query: 'document version',
+          mode: 'keyword',
+          results: [
+            {
+              documentId,
+              fileName: '西电_实习内容_v1.4.txt',
+              versionNumber: 1,
+              content: 'first document version',
+            },
+          ],
+        }),
+      );
+    await request(app.getHttpServer())
+      .post(searchUrl)
+      .auth(outsider.token, { type: 'bearer' })
+      .send({ query: 'document version' })
+      .expect(404);
 
     await request(app.getHttpServer())
       .post(documentsUrl)
