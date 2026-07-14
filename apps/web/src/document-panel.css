@@ -11,7 +11,7 @@
 
 .upload-label { cursor: pointer; }
 
-.knowledge-list li { padding: 0; display: block; }
+.knowledge-list.knowledge-list > li { padding: 0; display: block; }
 .knowledge-list li > button {
   width: 100%; min-height: 5rem; padding: 1rem 1.5rem; display: grid;
   grid-template-columns: 2.5rem minmax(0, 1fr) auto; align-items: center; gap: 0.85rem;
