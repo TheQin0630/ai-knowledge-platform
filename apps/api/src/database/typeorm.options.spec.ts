@@ -10,6 +10,7 @@ import { WorkspacesAndKnowledgeBases1783941600000 } from './migrations/178394160
 import { DocumentIngestion1784029200000 } from './migrations/1784029200000-document-ingestion';
 import { DocumentRetrieval1784115600000 } from './migrations/1784115600000-document-retrieval';
 import { RagConversations1784202000000 } from './migrations/1784202000000-rag-conversations';
+import { EvaluationRuns1784288400000 } from './migrations/1784288400000-evaluation-runs';
 import {
   createNestTypeOrmOptions,
   createPersistenceDataSource,
@@ -45,6 +46,7 @@ describe('TypeORM options', () => {
         DocumentIngestion1784029200000,
         DocumentRetrieval1784115600000,
         RagConversations1784202000000,
+        EvaluationRuns1784288400000,
       ],
     });
   });
@@ -72,6 +74,7 @@ describe('TypeORM options', () => {
         DocumentIngestion1784029200000,
         DocumentRetrieval1784115600000,
         RagConversations1784202000000,
+        EvaluationRuns1784288400000,
       ],
     });
   });

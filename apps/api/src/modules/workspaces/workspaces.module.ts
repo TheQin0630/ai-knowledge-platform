@@ -22,6 +22,8 @@ import { RetrievalService } from '../retrieval/retrieval.service';
 import { ChatCompletionService } from '../rag/chat-completion.service';
 import { RagController } from '../rag/rag.controller';
 import { RagService } from '../rag/rag.service';
+import { EvaluationsController } from '../evaluations/evaluations.controller';
+import { EvaluationsService } from '../evaluations/evaluations.service';
 import { Workspace } from './entities/workspace.entity';
 import { WorkspaceMember } from './entities/workspace-member.entity';
 import { WorkspaceAccessService } from './workspace-access.service';
@@ -46,6 +48,7 @@ import { WorkspacesService } from './workspaces.service';
     DocumentsController,
     RetrievalController,
     RagController,
+    EvaluationsController,
   ],
   providers: [
     WorkspacesService,
@@ -61,6 +64,7 @@ import { WorkspacesService } from './workspaces.service';
     RetrievalService,
     ChatCompletionService,
     RagService,
+    EvaluationsService,
     S3DocumentStorage,
     { provide: DOCUMENT_STORAGE, useExisting: S3DocumentStorage },
   ],

@@ -5,6 +5,7 @@ import { WorkspacesAndKnowledgeBases1783941600000 } from './migrations/178394160
 import { DocumentIngestion1784029200000 } from './migrations/1784029200000-document-ingestion';
 import { DocumentRetrieval1784115600000 } from './migrations/1784115600000-document-retrieval';
 import { RagConversations1784202000000 } from './migrations/1784202000000-rag-conversations';
+import { EvaluationRuns1784288400000 } from './migrations/1784288400000-evaluation-runs';
 import { Document } from '../modules/documents/entities/document.entity';
 import { DocumentVersion } from '../modules/documents/entities/document-version.entity';
 import { User } from '../modules/identity/entities/user.entity';
@@ -32,6 +33,7 @@ function createDataSourceOptions(databaseUrl: string): DataSourceOptions {
       DocumentIngestion1784029200000,
       DocumentRetrieval1784115600000,
       RagConversations1784202000000,
+      EvaluationRuns1784288400000,
     ],
     migrationsTableName: 'typeorm_migrations',
     migrationsRun: false,
